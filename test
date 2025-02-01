@@ -1,0 +1,14 @@
+/*
+    answer must be: 112
+*/
+
+// print (28 + 28) * 2;
+var a = 2;
+var b = 12;
+var d = a;
+
+print a + b * d;
+
+print 25 + 23;
+
+print 25 + 234 * 2;
