@@ -154,5 +154,6 @@ void interpret(struct Interpreter* intp, Stmts* stmts)
 {
     for (size_t i = 0; i < stmts->count; i++) {
         execute(intp, stmts->items[i]);
+        free_stmt(stmts->items[i]);
     }
 }

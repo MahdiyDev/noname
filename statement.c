@@ -36,7 +36,7 @@ void free_stmt(struct Stmt* stmt)
             free_expr(stmt->print.expression);
             break;
         case STMT_VAR:
-            free_expr(stmt->print.expression);
+            free_expr(stmt->variable.initializer);
             break;
     }
     free(stmt);
