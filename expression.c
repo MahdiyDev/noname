@@ -91,6 +91,15 @@ struct Expr* create_variable_expr(lexer_token name)
     return expr;
 }
 
+struct Expr* create_assign_expr(lexer_token name, struct Expr* value)
+{
+    struct Expr* expr = malloc(sizeof(struct Expr));
+    expr->type = EXPR_ASSIGN;
+    expr->assign.name = name;
+    expr->assign.value = value;
+    return expr;
+}
+
 lexer_token create_operator(const char* sign)
 {
     return (lexer_token){ .lexeme = sv_from_cstr(sign) };
@@ -111,10 +120,14 @@ void free_expr(struct Expr* expr)
         case EXPR_GROUP:
             free_expr(expr->group.expression);
             break;
+        case EXPR_ASSIGN:
+            free_expr(expr->assign.value);
+            break;
         case EXPR_VAR:
             break; // No dynamic memory in variable
         case EXPR_LITERAL:
             break; // No dynamic memory in literals
+          break;
         }
     free(expr);
 }

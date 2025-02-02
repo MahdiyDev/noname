@@ -116,6 +116,19 @@ struct Error* visit_variable_expr(struct Interpreter* intp, struct Expr* expr, i
     return trace(env_get(intp->env, expr->variable.name, result));
 }
 
+struct Error* visit_assign_expr(struct Interpreter* intp, struct Expr* expr, int* result)
+{
+    struct Error* error = NULL;
+
+
+    int value = 0;
+    if (has_error(evaluate(intp, expr->assign.value, &value))) {
+        return trace(error);
+    }
+
+    return trace(env_assign(intp->env, expr->assign.name, value));
+}
+
 struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, int* result)
 {
     struct Error* error = NULL;
@@ -131,6 +144,8 @@ struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, int* result)
         return trace(visit_literal_expr(expr, result));
     case EXPR_VAR:
         return trace(visit_variable_expr(intp, expr, result));
+    case EXPR_ASSIGN:
+        return trace(visit_assign_expr(intp, expr, result));
     }
 
     UNREACHABLE();

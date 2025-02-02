@@ -201,6 +201,44 @@ struct Error* parse_equality(lexer* l, lexer_token* t, struct Expr** result)
     return NULL;
 }
 
+struct Error* parse_assignment(lexer* l, lexer_token* t, struct Expr** result)
+{
+    struct Error* error = NULL;
+
+    struct Expr* expr = NULL;
+    if (has_error(parse_equality(l, t, &expr))) {
+        free_expr(*result);
+        return trace(error);
+    }
+
+    ignore_newline(l, t);
+
+    if (t->id == LEXER_END) {
+        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt_ptr(t));
+    }
+
+    if (sv_equal_cstr(t->lexeme, "=")) {
+        lexer_token equals = *t;
+        lex_get_token(l, t); // Consume equal '='
+
+        struct Expr* value = NULL;
+        if (has_error(parse_assignment(l, t, &value))) {
+            return trace(error);
+        }
+
+        if (expr->type == EXPR_VAR) {
+            lexer_token name = expr->variable.name;
+            *result = create_assign_expr(name, value);
+            return NULL;
+        }
+
+        return error_f("at %s:%zu:%zu Invalid assignment target.", lex_loc_fmt_ptr(t));
+    }
+
+    *result = expr;
+    return NULL;
+}
+
 struct Error* parse_expression(lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
@@ -209,7 +247,7 @@ struct Error* parse_expression(lexer* l, lexer_token* t, struct Expr** result)
         return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt_ptr(t));
     }
 
-    return trace(parse_equality(l, t, result));
+    return trace(parse_assignment(l, t, result));
 }
 
 struct Error* parse_expression_statement(lexer* l, lexer_token* t, struct Stmt** result)
