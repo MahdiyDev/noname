@@ -8,6 +8,7 @@
 #include "lexer.h"
 
 struct Error* parse_expression(lexer* l, lexer_token* t, struct Expr** result);
+struct Error* parse_declaration(lexer* l, lexer_token* t, struct Stmt** result);
 
 void ignore_newline(lexer* l, lexer_token* t)
 {
@@ -286,8 +287,35 @@ struct Error* parse_print_statement(lexer* l, lexer_token* t, struct Stmt** resu
         return error_f("at %s:%zu:%zu Expected ';' but got '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(t->lexeme));
     }
 
+    lex_get_token(l, t); // Consume ';'
+
     *result = create_print_stmt(value);
 
+    return NULL;
+}
+
+struct Error* parse_block(lexer* l, lexer_token* t, Stmts** result)
+{
+    struct Error* error = NULL;
+    ignore_newline(l, t);
+
+    Stmts* statements = NULL;
+    da_init(statements);
+
+    while (!sv_equal_cstr(t->lexeme, "}") && t->id != LEXER_END) {
+        struct Stmt* statement = NULL;
+        if (has_error(parse_declaration(l, t, &statement))) {
+            return trace(error);
+        }
+
+        da_append(statements, statement);
+
+        ignore_newline(l, t);
+    }
+
+    lex_get_token(l, t); // Consume '}'
+
+    *result = statements;
     return NULL;
 }
 
@@ -301,6 +329,18 @@ struct Error* parse_statement(lexer* l, lexer_token* t, struct Stmt** result)
     }
 
     if (sv_equal_cstr(t->lexeme, "print")) return trace(parse_print_statement(l, t, result));
+    if (sv_equal_cstr(t->lexeme, "{")) {
+        lex_get_token(l, t); // Consume '{'
+
+        Stmts* statements = NULL;
+
+        if (has_error(parse_block(l, t, &statements))) {
+            return trace(error);
+        }
+
+        *result = create_block_stmt(statements);
+        return NULL;
+    }
 
     return trace(parse_expression_statement(l, t, result));
 }
@@ -326,6 +366,7 @@ struct Error* parse_varaible_declaration(lexer* l, lexer_token* t, struct Stmt**
     if (!sv_equal_cstr(t->lexeme, ";")) {
         return error_f("at %s:%zu:%zu Expected ';' but got '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(t->lexeme));
     }
+    lex_get_token(l, t); // Consume ';'
     
     *result = create_variable_stmt(name, initializer);
 
@@ -350,7 +391,7 @@ struct Error* parse(lexer* l, lexer_token* t, Stmts* stmts)
 {
     struct Error* error = NULL;
 
-    while (lex_get_token(l, t) && t->id != LEXER_END) {
+    do {
         ignore_newline(l, t);
 
         if (t->id == LEXER_END) {
@@ -362,7 +403,7 @@ struct Error* parse(lexer* l, lexer_token* t, Stmts* stmts)
             return trace(error);
         }
         da_append(stmts, stmt);
-    }
+    } while (lex_get_token(l, t) && t->id != LEXER_END);
 
     return NULL;
 }

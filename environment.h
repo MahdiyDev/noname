@@ -5,9 +5,11 @@
 
 struct Enviroment {
     hash_table* values;
+
+    struct Enviroment* enclosing;
 };
 
-struct Enviroment* env_init();
+struct Enviroment* env_init(struct Enviroment* enclosing);
 void env_destroy(struct Enviroment* env);
 
 void env_define(struct Enviroment* env, string_view name, int value);

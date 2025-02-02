@@ -6,6 +6,7 @@
 #define UNREACHABLE() { fprintf(stderr, "%s:%d\n", __FILE__, __LINE__); abort();}
 
 struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, int* result);
+struct Error* execute(struct Interpreter* intp, struct Stmt* stmt);
 
 struct Error* visit_literal_expr(struct Expr* expr, int* result)
 {
@@ -120,7 +121,6 @@ struct Error* visit_assign_expr(struct Interpreter* intp, struct Expr* expr, int
 {
     struct Error* error = NULL;
 
-
     int value = 0;
     if (has_error(evaluate(intp, expr->assign.value, &value))) {
         return trace(error);
@@ -187,6 +187,34 @@ struct Error* visit_variable_stmt(struct Interpreter* intp, struct Stmt* stmt)
     return NULL;
 }
 
+struct Error* execute_block(struct Interpreter* intp, Stmts* stmts, struct Enviroment* env)
+{
+    struct Error* error = NULL;
+
+    struct Enviroment* prev_env = intp->env;
+
+    for (size_t i = 0; i < stmts->count; i++) {
+        intp->env = env;
+
+        if (has_error(execute(intp, stmts->items[i]))) {
+            intp->env = prev_env; // Restore env just in case
+            return trace(error);
+        }
+
+        free_stmt(stmts->items[i]);
+    }
+
+    intp->env = prev_env; // Restore env
+    return NULL;
+}
+
+struct Error* visit_block_stmt(struct Interpreter* intp, struct Stmt* stmt)
+{
+    struct Error* error = NULL;
+
+    return trace(execute_block(intp, stmt->block.statements, env_init(intp->env)));
+}
+
 struct Error* execute(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
@@ -198,13 +226,15 @@ struct Error* execute(struct Interpreter* intp, struct Stmt* stmt)
         return trace(visit_print_stmt(intp, stmt));
     case STMT_VAR:
         return trace(visit_variable_stmt(intp, stmt));
+    case STMT_BLOCK:
+        return trace(visit_block_stmt(intp, stmt));
     }
 }
 
 struct Interpreter* interpreter_init()
 {
     struct Interpreter* intp = malloc(sizeof(struct Interpreter));
-    intp->env = env_init();
+    intp->env = env_init(NULL);
     return intp;
 }
 

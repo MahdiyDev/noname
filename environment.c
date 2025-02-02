@@ -11,16 +11,18 @@ char* string_view_to_char(string_view s)
     return n;
 }
 
-struct Enviroment* env_init()
+struct Enviroment* env_init(struct Enviroment* enclosing)
 {
     struct Enviroment* env = malloc(sizeof(struct Enviroment));
     env->values = ht_init();
+    env->enclosing = enclosing;
     return env;
 }
 
 void env_destroy(struct Enviroment* env)
 {
     ht_free(env->values);
+    if (env->enclosing != NULL) env_destroy(env->enclosing);
     free(env);
 }
 
@@ -43,6 +45,8 @@ struct Error* env_get(struct Enviroment* env, lexer_token name, int* value)
         return_defer(NULL);
     }
 
+    if (env->enclosing != NULL) return env_get(env->enclosing, name, value);
+
     result = error_f("at %s:%zu:%zu Undefined variable %.*s", lex_loc_fmt(name), sv_fmt(name.lexeme));
 
 defer:
@@ -61,6 +65,8 @@ struct Error* env_assign(struct Enviroment* env, lexer_token name, int value)
         *current_value = value; 
         return_defer(NULL);
     }
+
+    if (env->enclosing != NULL) return env_assign(env->enclosing, name, value);
 
     result = error_f("at %s:%zu:%zu Undefined variable %.*s", lex_loc_fmt(name), sv_fmt(name.lexeme));
 

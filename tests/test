@@ -9,7 +9,7 @@ var d = a;
 
 print a + b * d;
 
-c = 3;
+// c = 3;
 print a + d;
 
 print 25 + 23;

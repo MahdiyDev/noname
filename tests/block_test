@@ -1,0 +1,23 @@
+var a = 1;
+var b = 2;
+var c = 3;
+{
+    var a = 10;
+    var b = 20;
+
+    {
+        var a = 100;
+
+        print a;
+        print b;
+        print c;
+    }
+
+    print a;
+    print b;
+    print c;
+}
+
+print a;
+print b;
+print c;

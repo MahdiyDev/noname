@@ -25,6 +25,14 @@ struct Stmt* create_variable_stmt(lexer_token name, struct Expr* initializer)
     return stmt;
 }
 
+struct Stmt* create_block_stmt(Stmts* statements)
+{
+    struct Stmt* stmt = malloc(sizeof(struct Stmt));
+    stmt->type = STMT_BLOCK;
+    stmt->block.statements = statements;
+    return stmt;
+}
+
 void free_stmt(struct Stmt* stmt)
 {
     if (!stmt) return;
@@ -38,6 +46,9 @@ void free_stmt(struct Stmt* stmt)
         case STMT_VAR:
             free_expr(stmt->variable.initializer);
             break;
-    }
+        case STMT_BLOCK:
+            da_free(stmt->block.statements);
+          break;
+        }
     free(stmt);
 }
