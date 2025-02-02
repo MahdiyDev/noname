@@ -3,7 +3,8 @@
 #include "libs/string.h"
 #include <stdio.h>
 
-#define lex_loc_fmt(t) t->loc.file_path, t->loc.row, t->loc.col
+#define lex_loc_fmt(t)      t.loc.file_path, t.loc.row, t.loc.col
+#define lex_loc_fmt_ptr(t)  t->loc.file_path, t->loc.row, t->loc.col
 
 typedef struct {
     const char *opening;

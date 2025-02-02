@@ -25,7 +25,7 @@ struct Error* parse_primary(lexer* l, lexer_token* t, struct Expr** result)
     ignore_newline(l, t);
 
     if (t->id == LEXER_END) {
-        return error_f("at %s:%zu:%zu Unexpected end of input while parsing primary expression.", lex_loc_fmt(t));
+        return error_f("at %s:%zu:%zu Unexpected end of input while parsing primary expression.", lex_loc_fmt_ptr(t));
     }
 
     if (t->id == LEXER_INT) {
@@ -49,7 +49,7 @@ struct Error* parse_primary(lexer* l, lexer_token* t, struct Expr** result)
 
         if (t->id != LEXER_PUNCT || !sv_equal_cstr(t->lexeme, ")")) {
             free_expr(*result);
-            return error_f("at %s:%zu:%zu Expected ')' but got '%.*s'", lex_loc_fmt(t), sv_fmt(t->lexeme));
+            return error_f("at %s:%zu:%zu Expected ')' but got '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(t->lexeme));
         }
 
         lex_get_token(l, t); // Consume ')'
@@ -57,7 +57,7 @@ struct Error* parse_primary(lexer* l, lexer_token* t, struct Expr** result)
         return NULL;
     }
 
-    return error_f("at %s:%zu:%zu Unexpected token '%.*s'", lex_loc_fmt(t), sv_fmt(t->lexeme));
+    return error_f("at %s:%zu:%zu Unexpected token '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(t->lexeme));
 }
 
 struct Error* parse_unary(lexer* l, lexer_token* t, struct Expr** result)
@@ -67,7 +67,7 @@ struct Error* parse_unary(lexer* l, lexer_token* t, struct Expr** result)
     ignore_newline(l, t);
 
     if (t->id == LEXER_END) {
-        return error_f("at %s:%zu:%zu Unexpected end of input while parsing unary expression.", lex_loc_fmt(t));
+        return error_f("at %s:%zu:%zu Unexpected end of input while parsing unary expression.", lex_loc_fmt_ptr(t));
     }
 
     if (sv_in_carr(t->lexeme, to_c_array(const char*, "!", "-"))) {
@@ -99,7 +99,7 @@ struct Error* parse_factor(lexer* l, lexer_token* t, struct Expr** result)
         lexer_token operator_tok = *t; // Save the current operator
 
         if (!lex_get_token(l, t)) {
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt(t), sv_fmt(operator_tok.lexeme));
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
@@ -128,7 +128,7 @@ struct Error* parse_term(lexer* l, lexer_token* t, struct Expr** result)
 
         if (!lex_get_token(l, t)) {
             free_expr(*result);
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt(t), sv_fmt(operator_tok.lexeme));
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
@@ -157,7 +157,7 @@ struct Error* parse_comparison(lexer* l, lexer_token* t, struct Expr** result)
 
         if (!lex_get_token(l, t)) {
             free_expr(*result);
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt(t), sv_fmt(operator_tok.lexeme));
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
@@ -186,7 +186,7 @@ struct Error* parse_equality(lexer* l, lexer_token* t, struct Expr** result)
 
         if (!lex_get_token(l, t)) {
             free_expr(*result);
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt(t), sv_fmt(operator_tok.lexeme));
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
@@ -206,7 +206,7 @@ struct Error* parse_expression(lexer* l, lexer_token* t, struct Expr** result)
     struct Error* error = NULL;
 
     if (t->id == LEXER_END) {
-        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt(t));
+        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt_ptr(t));
     }
 
     return trace(parse_equality(l, t, result));
@@ -224,7 +224,7 @@ struct Error* parse_expression_statement(lexer* l, lexer_token* t, struct Stmt**
     ignore_newline(l, t);
 
     if (!sv_equal_cstr(t->lexeme, ";")) {
-        return error_f("at %s:%zu:%zu Expected ';' but got '%.*s'", lex_loc_fmt(t), sv_fmt(t->lexeme));
+        return error_f("at %s:%zu:%zu Expected ';' but got '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(t->lexeme));
     }
 
     *result = create_expression_stmt(expr);
@@ -245,7 +245,7 @@ struct Error* parse_print_statement(lexer* l, lexer_token* t, struct Stmt** resu
     ignore_newline(l, t);
 
     if (!sv_equal_cstr(t->lexeme, ";")) {
-        return error_f("at %s:%zu:%zu Expected ';' but got '%.*s'", lex_loc_fmt(t), sv_fmt(t->lexeme));
+        return error_f("at %s:%zu:%zu Expected ';' but got '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(t->lexeme));
     }
 
     *result = create_print_stmt(value);
@@ -259,7 +259,7 @@ struct Error* parse_statement(lexer* l, lexer_token* t, struct Stmt** result)
     ignore_newline(l, t);
 
     if (t->id == LEXER_END) {
-        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt(t));
+        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt_ptr(t));
     }
 
     if (sv_equal_cstr(t->lexeme, "print")) return trace(parse_print_statement(l, t, result));
@@ -286,7 +286,7 @@ struct Error* parse_varaible_declaration(lexer* l, lexer_token* t, struct Stmt**
     }
     
     if (!sv_equal_cstr(t->lexeme, ";")) {
-        return error_f("at %s:%zu:%zu Expected ';' but got '%.*s'", lex_loc_fmt(t), sv_fmt(t->lexeme));
+        return error_f("at %s:%zu:%zu Expected ';' but got '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(t->lexeme));
     }
     
     *result = create_variable_stmt(name, initializer);
@@ -300,7 +300,7 @@ struct Error* parse_declaration(lexer* l, lexer_token* t, struct Stmt** result)
     ignore_newline(l, t);
 
     if (t->id == LEXER_END) {
-        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt(t));
+        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt_ptr(t));
     }
 
     if (sv_equal_cstr(t->lexeme, "var")) return trace(parse_varaible_declaration(l, t, result));
@@ -382,7 +382,13 @@ int main(int argc, char** argv)
 
     struct Interpreter* intp = interpreter_init();
 
-    interpret(intp, stmts);
+    if (has_error(interpret(intp, stmts))) {
+        print_error(error);
+
+        interpreter_destroy(intp);
+        da_free(stmts);
+        return_defer(EXIT_FAILURE);
+    }
 
     interpreter_destroy(intp);
 

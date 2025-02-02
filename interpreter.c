@@ -5,16 +5,23 @@
 
 #define UNREACHABLE() { fprintf(stderr, "%s:%d\n", __FILE__, __LINE__); abort();}
 
-int evaluate(struct Interpreter* intp, struct Expr* expr);
+struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, int* result);
 
-int visit_literal_expr(struct Expr* expr)
+struct Error* visit_literal_expr(struct Expr* expr, int* result)
 {
-    return expr->literal.value;
+    *result = expr->literal.value;
+    return NULL;
 }
 
-int visit_group_expr(struct Interpreter* intp, struct Expr* expr)
+struct Error* visit_group_expr(struct Interpreter* intp, struct Expr* expr, int* result)
 {
-    return evaluate(intp, expr->group.expression);
+    struct Error* error = NULL;
+
+    if (has_error(evaluate(intp, expr->group.expression, result))) {
+        return trace(error);
+    }
+
+    return NULL;
 }
 
 bool is_truthy(int value)
@@ -22,118 +29,160 @@ bool is_truthy(int value)
     return value == true;
 }
 
-int visit_unary_expr(struct Interpreter* intp, struct Expr* expr)
+struct Error* visit_unary_expr(struct Interpreter* intp, struct Expr* expr, int* result)
 {
-    int right = evaluate(intp, expr->unary.right);
+    struct Error* error = NULL;
+
+    int right = 0;
+    if (has_error(evaluate(intp, expr->unary.right, &right))) {
+        return trace(error);
+    }
 
     if (sv_equal_cstr(expr->unary.operator.lexeme, "-")) {
-        return -right;
+        *result = -right;
+        return NULL;
     }
     else if (sv_equal_cstr(expr->unary.operator.lexeme, "!")) {
         // TODO: change this to boolean value
-        return !is_truthy(right);
+        *result = !is_truthy(right);
+        return NULL;
     }
 
     UNREACHABLE();
 }
 
-int visit_binary_expr(struct Interpreter* intp, struct Expr* expr)
+struct Error* visit_binary_expr(struct Interpreter* intp, struct Expr* expr, int* result)
 {
-    int left = evaluate(intp, expr->binary.left);
-    int right = evaluate(intp, expr->binary.right);
+    struct Error* error = NULL;
+
+    int left = 0;
+    if (has_error(evaluate(intp, expr->binary.left, &left))) {
+        return trace(error);
+    }
+
+    int right = 0;
+    if (has_error(evaluate(intp, expr->binary.right, &right))) {
+        return trace(error);
+    }
 
     if (sv_equal_cstr(expr->binary.operator.lexeme, "==")) {
-        return left == right;
+        *result = left == right;
+        return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "!=")) {
-        return left != right;
+        *result = left != right;
+        return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, ">=")) {
-        return left >= right;
+        *result = left >= right;
+        return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, ">")) {
-        return left > right;
+        *result = left > right;
+        return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "<=")) {
-        return left <= right;
+        *result = left <= right;
+        return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "<")) {
-        return left < right;
+        *result = left < right;
+        return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "-")) {
-        return left - right;
+        *result = left - right;
+        return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "+")) {
-        return left + right;
+        *result = left + right;
+        return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "/")) {
-        return left / right;
+        *result = left / right;
+        return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "*")) {
-        return left * right;
+        *result = left * right;
+        return NULL;
     }
 
     UNREACHABLE();
 }
 
-int visit_variable_expr(struct Interpreter* intp, struct Expr* expr)
+struct Error* visit_variable_expr(struct Interpreter* intp, struct Expr* expr, int* result)
 {
-    int value = 0;
-    env_get(intp->env, expr->variable.name, &value);
-    return value;
+    struct Error* error = NULL;
+
+    return trace(env_get(intp->env, expr->variable.name, result));
 }
 
-int evaluate(struct Interpreter* intp, struct Expr* expr)
+struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, int* result)
 {
+    struct Error* error = NULL;
+
     switch (expr->type) {
     case EXPR_BINARY:
-        return visit_binary_expr(intp, expr);
+        return trace(visit_binary_expr(intp, expr, result));
     case EXPR_UNARY:
-        return visit_unary_expr(intp, expr);
+        return trace(visit_unary_expr(intp, expr, result));
     case EXPR_GROUP:
-        return visit_group_expr(intp, expr);
+        return trace(visit_group_expr(intp, expr, result));
     case EXPR_LITERAL:
-        return visit_literal_expr(expr);
+        return trace(visit_literal_expr(expr, result));
     case EXPR_VAR:
-        return visit_variable_expr(intp, expr);
+        return trace(visit_variable_expr(intp, expr, result));
     }
 
     UNREACHABLE();
 }
 
-void visit_expression_stmt(struct Interpreter* intp, struct Stmt* stmt)
+struct Error* visit_expression_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
-    evaluate(intp, stmt->expression.expression);
+    struct Error* error = NULL;
+
+    int value = 0;
+    return trace(evaluate(intp, stmt->expression.expression, &value));
 }
 
-void visit_print_stmt(struct Interpreter* intp, struct Stmt* stmt)
+struct Error* visit_print_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
-    int value = evaluate(intp, stmt->print.expression);
+    struct Error* error = NULL;
+
+    int value = 0;
+    if (has_error(evaluate(intp, stmt->print.expression, &value))) {
+        return trace(error);
+    }
+
     printf("%d\n", value);
+    return NULL;
 }
 
-void visit_variable_stmt(struct Interpreter* intp, struct Stmt* stmt)
+struct Error* visit_variable_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
+    struct Error* error = NULL;
+
     int value = 0;
     if (stmt->variable.initializer != NULL) {
-        value = evaluate(intp, stmt->variable.initializer);
+        if (has_error(evaluate(intp, stmt->variable.initializer, &value))) {
+            return trace(error);
+        }
     }
 
     env_define(intp->env, stmt->variable.name.lexeme, value);
+    return NULL;
 }
 
-void execute(struct Interpreter* intp, struct Stmt* stmt)
+struct Error* execute(struct Interpreter* intp, struct Stmt* stmt)
 {
+    struct Error* error = NULL;
+
     switch (stmt->type) {
     case STMT_EXPRESSION:
-        visit_expression_stmt(intp, stmt);
-        break;
+        return trace(visit_expression_stmt(intp, stmt));
     case STMT_PRINT:
-        visit_print_stmt(intp, stmt);
-        break;
+        return trace(visit_print_stmt(intp, stmt));
     case STMT_VAR:
-        visit_variable_stmt(intp, stmt);
-        break;
+        return trace(visit_variable_stmt(intp, stmt));
     }
 }
 
@@ -150,10 +199,17 @@ void interpreter_destroy(struct Interpreter* intp)
     free(intp);
 }
 
-void interpret(struct Interpreter* intp, Stmts* stmts)
+struct Error* interpret(struct Interpreter* intp, Stmts* stmts)
 {
+    struct Error* error = NULL;
+
     for (size_t i = 0; i < stmts->count; i++) {
-        execute(intp, stmts->items[i]);
+        if (has_error(execute(intp, stmts->items[i]))) {
+            return trace(error);
+        }
+
         free_stmt(stmts->items[i]);
     }
+
+    return NULL;
 }

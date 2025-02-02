@@ -9,4 +9,4 @@ struct Interpreter {
 struct Interpreter* interpreter_init();
 void interpreter_destroy(struct Interpreter* intp);
 
-void interpret(struct Interpreter* intp, Stmts* stmts);
+struct Error* interpret(struct Interpreter* intp, Stmts* stmts);

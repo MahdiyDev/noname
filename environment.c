@@ -38,7 +38,7 @@ struct Error* env_get(struct Enviroment* env, lexer_token name, int* value)
         return_defer(NULL);
     }
 
-    result = error_f("Undefined variable %.*s", sv_fmt(name.lexeme));
+    result = error_f("at %s:%zu:%zu Undefined variable %.*s", lex_loc_fmt(name), sv_fmt(name.lexeme));
 
 defer:
     free(n);
