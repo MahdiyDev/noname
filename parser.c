@@ -322,8 +322,16 @@ struct Error* parse_print_statement(lexer* l, lexer_token* t, struct Stmt** resu
     struct Error* error = NULL;
     lex_get_token(l, t); // Consume 'print'
 
+    if (has_error(consume_and_expect(l, t, "("))) {
+        return trace(error);
+    }
+
     struct Expr* value = NULL;
     if (has_error(parse_expression(l, t, &value))) {
+        return trace(error);
+    }
+
+    if (has_error(consume_and_expect(l, t, ")"))) {
         return trace(error);
     }
 

@@ -2,7 +2,7 @@ var a = 2;
 
 if (a < 3) {
     var a = 4;
-    print a;
+    print(a);
 } else {
-    print 47;
+    print(47);
 }
