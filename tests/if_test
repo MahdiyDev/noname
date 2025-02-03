@@ -1,0 +1,8 @@
+var a = 2;
+
+if (a < 3) {
+    var a = 4;
+    print a;
+} else {
+    print 47;
+}

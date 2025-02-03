@@ -13,6 +13,7 @@ typedef enum {
     STMT_PRINT,
     STMT_VAR,
     STMT_BLOCK,
+    STMT_IF,
 } StmtType;
 
 struct Stmt {
@@ -35,6 +36,12 @@ struct Stmt {
         struct {
             Stmts* statements;
         } block;
+
+        struct {
+            struct Expr* condition;
+            struct Stmt* then_branch;
+            struct Stmt* else_branch;
+        } if_stmt;
     };
 };
 
@@ -42,5 +49,6 @@ struct Stmt* create_expression_stmt(struct Expr* expression);
 struct Stmt* create_print_stmt(struct Expr* expression);
 struct Stmt* create_variable_stmt(lexer_token name, struct Expr* initializer);
 struct Stmt* create_block_stmt(Stmts* statements);
+struct Stmt* create_if_stmt(struct Expr* condition, struct Stmt* then_branch, struct Stmt* else_branch);
 
 void free_stmt(struct Stmt* stmt);

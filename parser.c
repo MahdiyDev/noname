@@ -9,6 +9,7 @@
 
 struct Error* parse_expression(lexer* l, lexer_token* t, struct Expr** result);
 struct Error* parse_declaration(lexer* l, lexer_token* t, struct Stmt** result);
+struct Error* parse_statement(lexer* l, lexer_token* t, struct Stmt** result);
 
 struct Error* consume_and_expect(lexer* l, lexer_token* t, const char* expexted_str)
 {
@@ -61,7 +62,6 @@ struct Error* parse_primary(lexer* l, lexer_token* t, struct Expr** result)
         }
 
         if (has_error(consume_and_expect(l, t, ")"))) {
-            free_expr(*result);
             return trace(error);
         }
 
@@ -111,19 +111,18 @@ struct Error* parse_factor(lexer* l, lexer_token* t, struct Expr** result)
         lexer_token operator_tok = *t; // Save the current operator
 
         if (!lex_get_token(l, t)) {
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
+            return trace(error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme)));
         }
 
         struct Expr* right = NULL;
         if (has_error(parse_unary(l, t, &right))) {
-            free_expr(*result);
             return trace(error);
         }
 
         *result = create_binary_expr(*result, operator_tok, right);
     }
 
-    return NULL;    
+    return NULL;
 }
 
 struct Error* parse_term(lexer* l, lexer_token* t, struct Expr** result)
@@ -141,13 +140,11 @@ struct Error* parse_term(lexer* l, lexer_token* t, struct Expr** result)
         lexer_token operator_tok = *t; // Save the current operator
 
         if (!lex_get_token(l, t)) {
-            free_expr(*result);
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
+            return trace(error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme)));
         }
 
         struct Expr* right = NULL;
         if (has_error(parse_factor(l, t, &right))) {
-            free_expr(*result);
             return trace(error);
         }
 
@@ -172,13 +169,11 @@ struct Error* parse_comparison(lexer* l, lexer_token* t, struct Expr** result)
         lexer_token operator_tok = *t; // Save the current operator
 
         if (!lex_get_token(l, t)) {
-            free_expr(*result);
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
+            return trace(error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme)));
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_term(l, t, result))) {
-            free_expr(*result);
+        if (has_error(parse_term(l, t, &right))) {
             return trace(error);
         }
 
@@ -203,13 +198,11 @@ struct Error* parse_equality(lexer* l, lexer_token* t, struct Expr** result)
         lexer_token operator_tok = *t; // Save the current operator
 
         if (!lex_get_token(l, t)) {
-            free_expr(*result);
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
+            return trace(error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme)));
         }
 
         struct Expr* right = NULL;
         if (has_error(parse_comparison(l, t, result))) {
-            free_expr(*result);
             return trace(error);
         }
 
@@ -225,7 +218,6 @@ struct Error* parse_assignment(lexer* l, lexer_token* t, struct Expr** result)
 
     struct Expr* expr = NULL;
     if (has_error(parse_equality(l, t, &expr))) {
-        free_expr(*result);
         return trace(error);
     }
 
@@ -248,7 +240,7 @@ struct Error* parse_assignment(lexer* l, lexer_token* t, struct Expr** result)
             return NULL;
         }
 
-        return error_f("at %s:%zu:%zu Invalid assignment target.", lex_loc_fmt_ptr(t));
+        return trace(error_f("at %s:%zu:%zu Invalid assignment target.", lex_loc_fmt_ptr(t)));
     }
 
     *result = expr;
@@ -280,11 +272,47 @@ struct Error* parse_expression_statement(lexer* l, lexer_token* t, struct Stmt**
     }
 
     if (has_error(consume_and_expect(l, t, ";"))) {
-        free_stmt(*result);
         return trace(error);
     }
 
     *result = create_expression_stmt(expr);
+
+    return NULL;
+}
+
+struct Error* parse_if_statement(lexer* l, lexer_token* t, struct Stmt** result)
+{
+    struct Error* error = NULL;
+    lex_get_token(l, t); // Consume 'if'
+
+    if (has_error(consume_and_expect(l, t, "("))) {
+        return trace(error);
+    }
+
+    struct Expr* condition = NULL;
+    if (has_error(parse_expression(l, t, &condition))) {
+        return trace(error);
+    }
+
+    if (has_error(consume_and_expect(l, t, ")"))) {
+        return trace(error);
+    }
+
+    struct Stmt* then_branch = NULL;
+    if (has_error(parse_declaration(l, t, &then_branch))) {
+        return trace(error);
+    }
+
+    struct Stmt* else_branch = NULL;
+    if (sv_equal_cstr(t->lexeme, "else")) {
+        lex_get_token(l, t); // Consume 'else'
+
+        if (has_error(parse_declaration(l, t, &else_branch))) {
+            return trace(error);
+        }
+    }
+
+    *result = create_if_stmt(condition, then_branch, else_branch);
 
     return NULL;
 }
@@ -304,7 +332,6 @@ struct Error* parse_print_statement(lexer* l, lexer_token* t, struct Stmt** resu
     }
 
     if (has_error(consume_and_expect(l, t, ";"))) {
-        free_stmt(*result);
         return trace(error);
     }
 
@@ -316,6 +343,8 @@ struct Error* parse_print_statement(lexer* l, lexer_token* t, struct Stmt** resu
 struct Error* parse_block(lexer* l, lexer_token* t, Stmts** result)
 {
     struct Error* error = NULL;
+
+    lex_get_token(l, t); // Consume '{'
     
     if (has_error(ignore_newline(l, t))) {
         return trace(error);
@@ -332,10 +361,9 @@ struct Error* parse_block(lexer* l, lexer_token* t, Stmts** result)
 
         da_append(statements, statement);
 
-        
-    if (has_error(ignore_newline(l, t))) {
-        return trace(error);
-    }
+        if (has_error(ignore_newline(l, t))) {
+            return trace(error);
+        }
     }
 
     lex_get_token(l, t); // Consume '}'
@@ -352,10 +380,9 @@ struct Error* parse_statement(lexer* l, lexer_token* t, struct Stmt** result)
         return trace(error);
     }
 
+    if (sv_equal_cstr(t->lexeme, "if")) return trace(parse_if_statement(l, t, result));
     if (sv_equal_cstr(t->lexeme, "print")) return trace(parse_print_statement(l, t, result));
     if (sv_equal_cstr(t->lexeme, "{")) {
-        lex_get_token(l, t); // Consume '{'
-
         Stmts* statements = NULL;
 
         if (has_error(parse_block(l, t, &statements))) {
@@ -388,7 +415,6 @@ struct Error* parse_varaible_declaration(lexer* l, lexer_token* t, struct Stmt**
     }
     
     if (has_error(consume_and_expect(l, t, ";"))) {
-        free_stmt(*result);
         return trace(error);
     }
     
@@ -410,7 +436,7 @@ struct Error* parse_declaration(lexer* l, lexer_token* t, struct Stmt** result)
     return trace(parse_statement(l, t, result));
 }
 
-struct Error* parse(lexer* l, lexer_token* t, Stmts* stmts)
+struct Error* parse(lexer* l, lexer_token* t, Stmts* result)
 {
     struct Error* error = NULL;
 
@@ -425,7 +451,7 @@ struct Error* parse(lexer* l, lexer_token* t, Stmts* stmts)
         if (has_error(parse_declaration(l, t, &stmt))) {
             return trace(error);
         }
-        da_append(stmts, stmt);
+        da_append(result, stmt);
     }
 
     return NULL;
@@ -443,7 +469,7 @@ const multi_line_comments ml_comments[] = {
 
 int main(int argc, char** argv)
 {
-    int result = EXIT_SUCCESS;
+    int exit_code = EXIT_SUCCESS;
 
     if (argc < 2) {
         fprintf(stderr, "usage: %s file\n", argv[0]);
@@ -452,7 +478,7 @@ int main(int argc, char** argv)
     const char* file_path = argv[1];
 
     string_builder* sb = sb_init(NULL);
-    if (!sb_read_file(sb, file_path)) return_defer(EXIT_FAILURE);
+    if (!sb_read_file(sb, file_path)) return_defer(exit_code, EXIT_FAILURE);
 
     lexer l = lexer_create(file_path, sb_to_sv(sb));
 
@@ -473,8 +499,12 @@ int main(int argc, char** argv)
     if (has_error(parse(&l, &t, stmts))) {
         print_error(error);
 
+        for (size_t i = 0; i < stmts->count; i++) {
+            free_stmt(stmts->items[i]);
+        }
+
         da_free(stmts);
-        return_defer(EXIT_FAILURE);
+        return_defer(exit_code, EXIT_FAILURE);
     }
 
     struct Interpreter* intp = interpreter_init();
@@ -484,7 +514,7 @@ int main(int argc, char** argv)
 
         interpreter_destroy(intp);
         da_free(stmts);
-        return_defer(EXIT_FAILURE);
+        return_defer(exit_code, EXIT_FAILURE);
     }
 
     interpreter_destroy(intp);
@@ -493,5 +523,5 @@ int main(int argc, char** argv)
 
 defer:
     sb_free(sb);
-    return result;
+    return exit_code;
 }

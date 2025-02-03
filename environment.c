@@ -36,41 +36,41 @@ void env_define(struct Enviroment* env, string_view name, int value)
 
 struct Error* env_get(struct Enviroment* env, lexer_token name, int* value)
 {
-    struct Error* result = NULL;
+    struct Error* error = NULL;
 
     char* n = string_view_to_char(name.lexeme);
 
     if (ht_has(env->values, n)) {
         *value = *ht_search_int(env->values, n);
-        return_defer(NULL);
+        return_defer(error, NULL);
     }
 
-    if (env->enclosing != NULL) return_defer(env_get(env->enclosing, name, value));
+    if (env->enclosing != NULL) return_defer(error, env_get(env->enclosing, name, value));
 
-    return_defer(error_f("at %s:%zu:%zu Undefined variable %.*s", lex_loc_fmt(name), sv_fmt(name.lexeme)));
+    return_defer(error, error_f("at %s:%zu:%zu Undefined variable %.*s", lex_loc_fmt(name), sv_fmt(name.lexeme)));
 
 defer:
     free(n);
-    return result;
+    return error;
 }
 
 struct Error* env_assign(struct Enviroment* env, lexer_token name, int value)
 {    
-    struct Error* result = NULL;
+    struct Error* error = NULL;
 
     char* n = string_view_to_char(name.lexeme);
 
     if (ht_has(env->values, n)) {
         int* current_value = ht_search_int(env->values, n);
         *current_value = value; 
-        return_defer(NULL);
+        return_defer(error, NULL);
     }
 
-    if (env->enclosing != NULL) return_defer(env_assign(env->enclosing, name, value));
+    if (env->enclosing != NULL) return_defer(error, env_assign(env->enclosing, name, value));
 
-    return_defer(error_f("at %s:%zu:%zu Undefined variable %.*s", lex_loc_fmt(name), sv_fmt(name.lexeme)));
+    return_defer(error, error_f("at %s:%zu:%zu Undefined variable %.*s", lex_loc_fmt(name), sv_fmt(name.lexeme)));
 
 defer:
     free(n);
-    return result;
+    return error;
 }

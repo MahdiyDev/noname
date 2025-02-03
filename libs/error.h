@@ -63,4 +63,4 @@ struct Error {
         } \
     } while(0)
 
-#define return_defer(value) ({result = value; goto defer;})
+#define return_defer(result, value) ({result = value; goto defer;})

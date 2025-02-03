@@ -216,6 +216,28 @@ struct Error* visit_block_stmt(struct Interpreter* intp, struct Stmt* stmt)
     return trace(execute_block(intp, stmt->block.statements, env_init(intp->env)));
 }
 
+struct Error* visit_if_stmt(struct Interpreter* intp, struct Stmt* stmt)
+{
+    struct Error* error = NULL;
+
+    int value = 0;
+    if (has_error(evaluate(intp, stmt->if_stmt.condition, &value))) {
+        return trace(error);
+    }
+
+    if (is_truthy(value)) {
+        if (has_error(execute(intp, stmt->if_stmt.then_branch))) {
+            return trace(error);
+        }
+    } else if (stmt->if_stmt.else_branch != NULL) {
+        if (has_error(execute(intp, stmt->if_stmt.else_branch))) {
+            return trace(error);
+        }
+    }
+
+    return NULL;
+}
+
 struct Error* execute(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
@@ -229,6 +251,8 @@ struct Error* execute(struct Interpreter* intp, struct Stmt* stmt)
         return trace(visit_variable_stmt(intp, stmt));
     case STMT_BLOCK:
         return trace(visit_block_stmt(intp, stmt));
+    case STMT_IF:
+        return trace(visit_if_stmt(intp, stmt));
     }
 }
 
