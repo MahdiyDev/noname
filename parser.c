@@ -418,7 +418,7 @@ struct Error* parse(lexer* l, lexer_token* t, Stmts* stmts)
 
     while (t->id != LEXER_END) {
         if (has_error(ignore_newline(l, t))) {
-            return trace(error);
+            return NULL;
         }
 
         struct Stmt* stmt = NULL;
