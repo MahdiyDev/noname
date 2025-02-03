@@ -45,9 +45,9 @@ struct Error* env_get(struct Enviroment* env, lexer_token name, int* value)
         return_defer(NULL);
     }
 
-    if (env->enclosing != NULL) return env_get(env->enclosing, name, value);
+    if (env->enclosing != NULL) return_defer(env_get(env->enclosing, name, value));
 
-    result = error_f("at %s:%zu:%zu Undefined variable %.*s", lex_loc_fmt(name), sv_fmt(name.lexeme));
+    return_defer(error_f("at %s:%zu:%zu Undefined variable %.*s", lex_loc_fmt(name), sv_fmt(name.lexeme)));
 
 defer:
     free(n);
@@ -66,9 +66,9 @@ struct Error* env_assign(struct Enviroment* env, lexer_token name, int value)
         return_defer(NULL);
     }
 
-    if (env->enclosing != NULL) return env_assign(env->enclosing, name, value);
+    if (env->enclosing != NULL) return_defer(env_assign(env->enclosing, name, value));
 
-    result = error_f("at %s:%zu:%zu Undefined variable %.*s", lex_loc_fmt(name), sv_fmt(name.lexeme));
+    return_defer(error_f("at %s:%zu:%zu Undefined variable %.*s", lex_loc_fmt(name), sv_fmt(name.lexeme)));
 
 defer:
     free(n);

@@ -10,23 +10,35 @@
 struct Error* parse_expression(lexer* l, lexer_token* t, struct Expr** result);
 struct Error* parse_declaration(lexer* l, lexer_token* t, struct Stmt** result);
 
-void ignore_newline(lexer* l, lexer_token* t)
+struct Error* consume_and_expect(lexer* l, lexer_token* t, const char* expexted_str)
+{
+    if (!sv_equal_cstr(t->lexeme, expexted_str)) {
+        return error_f("at %s:%zu:%zu Expected '%s' but got '%.*s'", lex_loc_fmt_ptr(t), expexted_str, sv_fmt(t->lexeme));
+    }
+    lex_get_token(l, t); // Consume 'expexted_str'
+    return NULL;
+}
+
+struct Error* ignore_newline(lexer* l, lexer_token* t)
 {
     while (t->id == LEXER_NEWLINE) {
         if (!lex_get_token(l, t) || t->id == LEXER_END) {
             break;
         }
     }
+
+    if (t->id == LEXER_END) {
+        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt_ptr(t));
+    }
+    return NULL;
 }
 
 struct Error* parse_primary(lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
 
-    ignore_newline(l, t);
-
-    if (t->id == LEXER_END) {
-        return error_f("at %s:%zu:%zu Unexpected end of input while parsing primary expression.", lex_loc_fmt_ptr(t));
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
     }
 
     if (t->id == LEXER_INT) {
@@ -48,12 +60,11 @@ struct Error* parse_primary(lexer* l, lexer_token* t, struct Expr** result)
             return trace(error);
         }
 
-        if (t->id != LEXER_PUNCT || !sv_equal_cstr(t->lexeme, ")")) {
+        if (has_error(consume_and_expect(l, t, ")"))) {
             free_expr(*result);
-            return error_f("at %s:%zu:%zu Expected ')' but got '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(t->lexeme));
+            return trace(error);
         }
 
-        lex_get_token(l, t); // Consume ')'
         *result = create_group_expr(*result);
         return NULL;
     }
@@ -65,10 +76,8 @@ struct Error* parse_unary(lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
 
-    ignore_newline(l, t);
-
-    if (t->id == LEXER_END) {
-        return error_f("at %s:%zu:%zu Unexpected end of input while parsing unary expression.", lex_loc_fmt_ptr(t));
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
     }
 
     if (sv_in_carr(t->lexeme, to_c_array(const char*, "!", "-"))) {
@@ -94,9 +103,11 @@ struct Error* parse_factor(lexer* l, lexer_token* t, struct Expr** result)
         return trace(error);
     }
 
-    ignore_newline(l, t);
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
+    }
 
-    while (t->id != LEXER_END && sv_in_carr(t->lexeme, to_c_array(const char*, "/", "*"))) {
+    while (sv_in_carr(t->lexeme, to_c_array(const char*, "/", "*"))) {
         lexer_token operator_tok = *t; // Save the current operator
 
         if (!lex_get_token(l, t)) {
@@ -122,9 +133,11 @@ struct Error* parse_term(lexer* l, lexer_token* t, struct Expr** result)
         return trace(error);
     }
 
-    ignore_newline(l, t);
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
+    }
 
-    while (t->id != LEXER_END && sv_in_carr(t->lexeme, to_c_array(const char*, "-", "+"))) {
+    while (sv_in_carr(t->lexeme, to_c_array(const char*, "-", "+"))) {
         lexer_token operator_tok = *t; // Save the current operator
 
         if (!lex_get_token(l, t)) {
@@ -151,9 +164,11 @@ struct Error* parse_comparison(lexer* l, lexer_token* t, struct Expr** result)
         return trace(error);
     }
 
-    ignore_newline(l, t);
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
+    }
 
-    while (t->id != LEXER_END && sv_in_carr(t->lexeme, to_c_array(const char*, ">", ">=", "<", "<="))) {
+    while (sv_in_carr(t->lexeme, to_c_array(const char*, ">", ">=", "<", "<="))) {
         lexer_token operator_tok = *t; // Save the current operator
 
         if (!lex_get_token(l, t)) {
@@ -180,9 +195,11 @@ struct Error* parse_equality(lexer* l, lexer_token* t, struct Expr** result)
         return trace(error);
     }
 
-    ignore_newline(l, t);
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
+    }
 
-    while (t->id != LEXER_END && sv_in_carr(t->lexeme, to_c_array(const char*, "!=", "=="))) {
+    while (sv_in_carr(t->lexeme, to_c_array(const char*, "!=", "=="))) {
         lexer_token operator_tok = *t; // Save the current operator
 
         if (!lex_get_token(l, t)) {
@@ -212,10 +229,8 @@ struct Error* parse_assignment(lexer* l, lexer_token* t, struct Expr** result)
         return trace(error);
     }
 
-    ignore_newline(l, t);
-
-    if (t->id == LEXER_END) {
-        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt_ptr(t));
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
     }
 
     if (sv_equal_cstr(t->lexeme, "=")) {
@@ -244,8 +259,8 @@ struct Error* parse_expression(lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
 
-    if (t->id == LEXER_END) {
-        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt_ptr(t));
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
     }
 
     return trace(parse_assignment(l, t, result));
@@ -260,10 +275,13 @@ struct Error* parse_expression_statement(lexer* l, lexer_token* t, struct Stmt**
         return trace(error);
     }
 
-    ignore_newline(l, t);
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
+    }
 
-    if (!sv_equal_cstr(t->lexeme, ";")) {
-        return error_f("at %s:%zu:%zu Expected ';' but got '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(t->lexeme));
+    if (has_error(consume_and_expect(l, t, ";"))) {
+        free_stmt(*result);
+        return trace(error);
     }
 
     *result = create_expression_stmt(expr);
@@ -281,13 +299,14 @@ struct Error* parse_print_statement(lexer* l, lexer_token* t, struct Stmt** resu
         return trace(error);
     }
 
-    ignore_newline(l, t);
-
-    if (!sv_equal_cstr(t->lexeme, ";")) {
-        return error_f("at %s:%zu:%zu Expected ';' but got '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(t->lexeme));
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
     }
 
-    lex_get_token(l, t); // Consume ';'
+    if (has_error(consume_and_expect(l, t, ";"))) {
+        free_stmt(*result);
+        return trace(error);
+    }
 
     *result = create_print_stmt(value);
 
@@ -297,7 +316,10 @@ struct Error* parse_print_statement(lexer* l, lexer_token* t, struct Stmt** resu
 struct Error* parse_block(lexer* l, lexer_token* t, Stmts** result)
 {
     struct Error* error = NULL;
-    ignore_newline(l, t);
+    
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
+    }
 
     Stmts* statements = NULL;
     da_init(statements);
@@ -310,7 +332,10 @@ struct Error* parse_block(lexer* l, lexer_token* t, Stmts** result)
 
         da_append(statements, statement);
 
-        ignore_newline(l, t);
+        
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
+    }
     }
 
     lex_get_token(l, t); // Consume '}'
@@ -322,10 +347,9 @@ struct Error* parse_block(lexer* l, lexer_token* t, Stmts** result)
 struct Error* parse_statement(lexer* l, lexer_token* t, struct Stmt** result)
 {
     struct Error* error = NULL;
-    ignore_newline(l, t);
-
-    if (t->id == LEXER_END) {
-        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt_ptr(t));
+    
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
     }
 
     if (sv_equal_cstr(t->lexeme, "print")) return trace(parse_print_statement(l, t, result));
@@ -363,10 +387,10 @@ struct Error* parse_varaible_declaration(lexer* l, lexer_token* t, struct Stmt**
         }
     }
     
-    if (!sv_equal_cstr(t->lexeme, ";")) {
-        return error_f("at %s:%zu:%zu Expected ';' but got '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(t->lexeme));
+    if (has_error(consume_and_expect(l, t, ";"))) {
+        free_stmt(*result);
+        return trace(error);
     }
-    lex_get_token(l, t); // Consume ';'
     
     *result = create_variable_stmt(name, initializer);
 
@@ -376,10 +400,9 @@ struct Error* parse_varaible_declaration(lexer* l, lexer_token* t, struct Stmt**
 struct Error* parse_declaration(lexer* l, lexer_token* t, struct Stmt** result)
 {   
     struct Error* error = NULL;
-    ignore_newline(l, t);
-
-    if (t->id == LEXER_END) {
-        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt_ptr(t));
+    
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
     }
 
     if (sv_equal_cstr(t->lexeme, "var")) return trace(parse_varaible_declaration(l, t, result));
@@ -391,11 +414,11 @@ struct Error* parse(lexer* l, lexer_token* t, Stmts* stmts)
 {
     struct Error* error = NULL;
 
-    do {
-        ignore_newline(l, t);
+    lex_get_token(l, t); // Get first token
 
-        if (t->id == LEXER_END) {
-            return NULL; // After new line
+    while (t->id != LEXER_END) {
+        if (has_error(ignore_newline(l, t))) {
+            return trace(error);
         }
 
         struct Stmt* stmt = NULL;
@@ -403,7 +426,7 @@ struct Error* parse(lexer* l, lexer_token* t, Stmts* stmts)
             return trace(error);
         }
         da_append(stmts, stmt);
-    } while (lex_get_token(l, t) && t->id != LEXER_END);
+    }
 
     return NULL;
 }
@@ -440,12 +463,7 @@ int main(int argc, char** argv)
     l.ml_comments = ml_comments;
     l.ml_comments_count = arr_count(ml_comments);
 
-    lexer_token t;
-
-    if (!lex_get_token(&l, &t)) {
-        print_token_error(&t, "Failed to get the first token.\n");
-        return_defer(EXIT_FAILURE);
-    }
+    lexer_token t = {0};
 
     struct Error* error = NULL;
 
