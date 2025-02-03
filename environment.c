@@ -22,7 +22,7 @@ struct Enviroment* env_init(struct Enviroment* enclosing)
 void env_destroy(struct Enviroment* env)
 {
     ht_free(env->values);
-    if (env->enclosing != NULL) env_destroy(env->enclosing);
+    // if (env->enclosing != NULL) env_destroy(env->enclosing);
     free(env);
 }
 

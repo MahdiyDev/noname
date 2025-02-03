@@ -204,6 +204,7 @@ struct Error* execute_block(struct Interpreter* intp, Stmts* stmts, struct Envir
         free_stmt(stmts->items[i]);
     }
 
+    env_destroy(env);
     intp->env = prev_env; // Restore env
     return NULL;
 }
