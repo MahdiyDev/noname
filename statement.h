@@ -14,6 +14,7 @@ typedef enum {
     STMT_VAR,
     STMT_BLOCK,
     STMT_IF,
+    STMT_WHILE,
 } StmtType;
 
 struct Stmt {
@@ -42,6 +43,11 @@ struct Stmt {
             struct Stmt* then_branch;
             struct Stmt* else_branch;
         } if_stmt;
+
+        struct {
+            struct Expr* condition;
+            struct Stmt* body;
+        } while_stmt;
     };
 };
 
@@ -50,5 +56,6 @@ struct Stmt* create_print_stmt(struct Expr* expression);
 struct Stmt* create_variable_stmt(lexer_token name, struct Expr* initializer);
 struct Stmt* create_block_stmt(Stmts* statements);
 struct Stmt* create_if_stmt(struct Expr* condition, struct Stmt* then_branch, struct Stmt* else_branch);
+struct Stmt* create_while_stmt(struct Expr* condition, struct Stmt* body);
 
 void free_stmt(struct Stmt* stmt);

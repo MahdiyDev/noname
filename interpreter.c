@@ -2,6 +2,7 @@
 #include "libs/string.h"
 #include "statement.h"
 #include "environment.h"
+#include <string.h>
 
 #define UNREACHABLE() { fprintf(stderr, "%s:%d\n", __FILE__, __LINE__); abort();}
 
@@ -129,6 +130,36 @@ struct Error* visit_assign_expr(struct Interpreter* intp, struct Expr* expr, int
     return trace(env_assign(intp->env, expr->assign.name, value));
 }
 
+struct Error* visit_logical_expr(struct Interpreter* intp, struct Expr* expr, int* result)
+{
+    struct Error* error = NULL;
+
+    int left = 0;
+    if (has_error(evaluate(intp, expr->logical.left, &left))) {
+        return trace(error);
+    }
+    
+    if (sv_equal_cstr(expr->binary.operator.lexeme, "or")) {
+        if (is_truthy(left)) {
+            *result = left;
+            return NULL;
+        }
+    } else {
+        if (!is_truthy(left)) {
+            *result = left;
+            return NULL;
+        }
+    }
+
+    int right = 0;
+    if (has_error(evaluate(intp, expr->logical.right, &right))) {
+        return trace(error);
+    }
+    *result = right;
+
+    return NULL;
+}
+
 struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, int* result)
 {
     struct Error* error = NULL;
@@ -146,6 +177,8 @@ struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, int* result)
         return trace(visit_variable_expr(intp, expr, result));
     case EXPR_ASSIGN:
         return trace(visit_assign_expr(intp, expr, result));
+    case EXPR_LOGICAL:
+        return trace(visit_logical_expr(intp, expr, result));
     }
 
     UNREACHABLE();
@@ -200,8 +233,6 @@ struct Error* execute_block(struct Interpreter* intp, Stmts* stmts, struct Envir
             intp->env = prev_env; // Restore env just in case
             return trace(error);
         }
-
-        free_stmt(stmts->items[i]);
     }
 
     env_destroy(env);
@@ -238,6 +269,28 @@ struct Error* visit_if_stmt(struct Interpreter* intp, struct Stmt* stmt)
     return NULL;
 }
 
+struct Error* visit_while_stmt(struct Interpreter* intp, struct Stmt* stmt)
+{
+    struct Error* error = NULL;
+
+    int value = 0;
+    if (has_error(evaluate(intp, stmt->while_stmt.condition, &value))) {
+        return trace(error);
+    }
+
+    while (is_truthy(value)) {
+        if (has_error(execute_block(intp, stmt->while_stmt.body->block.statements, env_init(intp->env)))) {
+            return trace(error);
+        }
+
+        if (has_error(evaluate(intp, stmt->while_stmt.condition, &value))) {
+            return trace(error);
+        }
+    }
+
+    return NULL;
+}
+
 struct Error* execute(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
@@ -253,6 +306,8 @@ struct Error* execute(struct Interpreter* intp, struct Stmt* stmt)
         return trace(visit_block_stmt(intp, stmt));
     case STMT_IF:
         return trace(visit_if_stmt(intp, stmt));
+    case STMT_WHILE:
+        return trace(visit_while_stmt(intp, stmt));
     }
 }
 
@@ -277,8 +332,6 @@ struct Error* interpret(struct Interpreter* intp, Stmts* stmts)
         if (has_error(execute(intp, stmts->items[i]))) {
             return trace(error);
         }
-
-        free_stmt(stmts->items[i]);
     }
 
     return NULL;

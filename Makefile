@@ -3,7 +3,9 @@ CFLAGS=-O0 -g
 # CFLAGS=-O2
 LIBS=-lm
 
-noname.out: parser.o lexer.o expression.o statement.o interpreter.o environment.o libs/string.o libs/hash_table.o
+noname.out: parser.o lexer.o expression.o \
+			statement.o interpreter.o environment.o \
+			temp_alloc.o libs/string.o libs/hash_table.o
 	$(CC) $^ -o $@ $(LIBS)
 
 parser.o: parser.c libs/error.h
@@ -22,6 +24,9 @@ interpreter.o: interpreter.c interpreter.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 environment.o: environment.c environment.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+temp_alloc.o: temp_alloc.c temp_alloc.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 ##### BUILDING LIBS #####

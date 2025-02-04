@@ -1,0 +1,5 @@
+var a = 0;
+
+print(a or 2);
+
+print(15 and 15);

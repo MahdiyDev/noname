@@ -100,6 +100,16 @@ struct Expr* create_assign_expr(lexer_token name, struct Expr* value)
     return expr;
 }
 
+struct Expr* create_logical_expr(struct Expr* left, lexer_token operator, struct Expr* right)
+{
+    struct Expr* expr = malloc(sizeof(struct Expr));
+    expr->type = EXPR_LOGICAL;
+    expr->logical.left = left;
+    expr->logical.operator = operator;
+    expr->logical.right = right;
+    return expr;
+}
+
 lexer_token create_operator(const char* sign)
 {
     return (lexer_token){ .lexeme = sv_from_cstr(sign) };
@@ -110,25 +120,28 @@ void free_expr(struct Expr* expr)
 {
     if (!expr) return;
     switch (expr->type) {
-        case EXPR_BINARY:
-            free_expr(expr->binary.left);
-            free_expr(expr->binary.right);
-            break;
-        case EXPR_UNARY:
-            free_expr(expr->unary.right);
-            break;
-        case EXPR_GROUP:
-            free_expr(expr->group.expression);
-            break;
-        case EXPR_ASSIGN:
-            free_expr(expr->assign.value);
-            break;
-        case EXPR_VAR:
-            break; // No dynamic memory in variable
-        case EXPR_LITERAL:
-            break; // No dynamic memory in literals
-          break;
-        }
+    case EXPR_BINARY:
+        free_expr(expr->binary.left);
+        free_expr(expr->binary.right);
+        break;
+    case EXPR_UNARY:
+        free_expr(expr->unary.right);
+        break;
+    case EXPR_GROUP:
+        free_expr(expr->group.expression);
+        break;
+    case EXPR_ASSIGN:
+        free_expr(expr->assign.value);
+        break;
+    case EXPR_LOGICAL:
+        free_expr(expr->logical.left);
+        free_expr(expr->logical.right);
+        break;
+    case EXPR_VAR:
+        break; // No dynamic memory in variable
+    case EXPR_LITERAL:
+        break; // No dynamic memory in literals
+    }
     free(expr);
 }
 

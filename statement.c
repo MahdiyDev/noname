@@ -44,6 +44,15 @@ struct Stmt* create_if_stmt(struct Expr* condition, struct Stmt* then_branch, st
     return stmt;
 }
 
+struct Stmt* create_while_stmt(struct Expr* condition, struct Stmt* body)
+{
+    struct Stmt* stmt = malloc(sizeof(struct Stmt));
+    stmt->type = STMT_WHILE;
+    stmt->while_stmt.condition = condition;
+    stmt->while_stmt.body = body;
+    return stmt;
+}
+
 void free_stmt(struct Stmt* stmt)
 {
     if (!stmt) return;
@@ -65,6 +74,10 @@ void free_stmt(struct Stmt* stmt)
         free_expr(stmt->if_stmt.condition);
         free_stmt(stmt->if_stmt.then_branch);
         free_stmt(stmt->if_stmt.else_branch);
+        break;
+    case STMT_WHILE:
+        free_expr(stmt->while_stmt.condition);
+        free_stmt(stmt->while_stmt.body);
         break;
     }
 

@@ -5,6 +5,7 @@
 
 struct Enviroment {
     hash_table* values;
+    size_t temp_index;
 
     struct Enviroment* enclosing;
 };

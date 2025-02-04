@@ -111,7 +111,7 @@ struct Error* parse_factor(lexer* l, lexer_token* t, struct Expr** result)
         lexer_token operator_tok = *t; // Save the current operator
 
         if (!lex_get_token(l, t)) {
-            return trace(error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme)));
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
@@ -140,7 +140,7 @@ struct Error* parse_term(lexer* l, lexer_token* t, struct Expr** result)
         lexer_token operator_tok = *t; // Save the current operator
 
         if (!lex_get_token(l, t)) {
-            return trace(error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme)));
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
@@ -169,7 +169,7 @@ struct Error* parse_comparison(lexer* l, lexer_token* t, struct Expr** result)
         lexer_token operator_tok = *t; // Save the current operator
 
         if (!lex_get_token(l, t)) {
-            return trace(error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme)));
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
@@ -198,15 +198,67 @@ struct Error* parse_equality(lexer* l, lexer_token* t, struct Expr** result)
         lexer_token operator_tok = *t; // Save the current operator
 
         if (!lex_get_token(l, t)) {
-            return trace(error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme)));
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_comparison(l, t, result))) {
+        if (has_error(parse_comparison(l, t, &right))) {
             return trace(error);
         }
 
         *result = create_binary_expr(*result, operator_tok, right);
+    }
+
+    return NULL;
+}
+
+struct Error* parse_and(lexer* l, lexer_token* t, struct Expr** result)
+{
+    struct Error* error = NULL;
+
+    if (has_error(parse_equality(l, t, result))) {
+        return trace(error);
+    }
+
+    while (sv_equal_cstr(t->lexeme, "and")) {
+        lexer_token operator_tok = *t; // Save the current operator
+
+        if (!lex_get_token(l, t)) {
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
+        }
+
+        struct Expr* right = NULL;
+        if (has_error(parse_equality(l, t, &right))) {
+            return trace(error);
+        }
+
+        *result = create_logical_expr(*result, operator_tok, right);
+    }
+
+    return NULL;
+}
+
+struct Error* parse_or(lexer* l, lexer_token* t, struct Expr** result)
+{
+    struct Error* error = NULL;
+
+    if (has_error(parse_and(l, t, result))) {
+        return trace(error);
+    }
+
+    while (sv_equal_cstr(t->lexeme, "or")) {
+        lexer_token operator_tok = *t; // Save the current operator
+
+        if (!lex_get_token(l, t)) {
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
+        }
+
+        struct Expr* right = NULL;
+        if (has_error(parse_and(l, t, &right))) {
+            return trace(error);
+        }
+
+        *result = create_logical_expr(*result, operator_tok, right);
     }
 
     return NULL;
@@ -217,7 +269,7 @@ struct Error* parse_assignment(lexer* l, lexer_token* t, struct Expr** result)
     struct Error* error = NULL;
 
     struct Expr* expr = NULL;
-    if (has_error(parse_equality(l, t, &expr))) {
+    if (has_error(parse_or(l, t, &expr))) {
         return trace(error);
     }
 
@@ -240,7 +292,7 @@ struct Error* parse_assignment(lexer* l, lexer_token* t, struct Expr** result)
             return NULL;
         }
 
-        return trace(error_f("at %s:%zu:%zu Invalid assignment target.", lex_loc_fmt_ptr(t)));
+        return error_f("at %s:%zu:%zu Invalid assignment target.", lex_loc_fmt_ptr(t));
     }
 
     *result = expr;
@@ -348,6 +400,38 @@ struct Error* parse_print_statement(lexer* l, lexer_token* t, struct Stmt** resu
     return NULL;
 }
 
+struct Error* parse_while_statement(lexer* l, lexer_token* t, struct Stmt** result)
+{
+    struct Error* error = NULL;
+    lex_get_token(l, t); // Consume 'while'
+
+    if (has_error(consume_and_expect(l, t, "("))) {
+        return trace(error);
+    }
+
+    struct Expr* condition = NULL;
+    if (has_error(parse_expression(l, t, &condition))) {
+        return trace(error);
+    }
+
+    if (has_error(consume_and_expect(l, t, ")"))) {
+        return trace(error);
+    }
+
+    if (has_error(ignore_newline(l, t))) {
+        return trace(error);
+    }
+
+    struct Stmt* body = NULL;
+    if (has_error(parse_declaration(l, t, &body))) {
+        return trace(error);
+    }
+
+    *result = create_while_stmt(condition, body);
+
+    return NULL;
+}
+
 struct Error* parse_block(lexer* l, lexer_token* t, Stmts** result)
 {
     struct Error* error = NULL;
@@ -390,6 +474,7 @@ struct Error* parse_statement(lexer* l, lexer_token* t, struct Stmt** result)
 
     if (sv_equal_cstr(t->lexeme, "if")) return trace(parse_if_statement(l, t, result));
     if (sv_equal_cstr(t->lexeme, "print")) return trace(parse_print_statement(l, t, result));
+    if (sv_equal_cstr(t->lexeme, "while")) return trace(parse_while_statement(l, t, result));
     if (sv_equal_cstr(t->lexeme, "{")) {
         Stmts* statements = NULL;
 
@@ -526,6 +611,10 @@ int main(int argc, char** argv)
     }
 
     interpreter_destroy(intp);
+
+    for (size_t i = 0; i < stmts->count; i++) {
+        free_stmt(stmts->items[i]);
+    }
 
     da_free(stmts);
 
