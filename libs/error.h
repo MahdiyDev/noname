@@ -33,7 +33,7 @@ struct Error {
 #define error_f(fmt, ...) _error_f(fmt, __VA_ARGS__)
 
 #define error(message)({ \
-    static Error e = { message }; \
+    static struct Error e = { message }; \
     e.trace_index = 0; \
     e.stack_trace[e.trace_index] = (stack_trace) { __FILE__, __FUNCTION_NAME__, __LINE__ }; \
     &e; \

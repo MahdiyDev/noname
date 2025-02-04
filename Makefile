@@ -5,7 +5,7 @@ LIBS=-lm
 
 noname.out: parser.o lexer.o expression.o \
 			statement.o interpreter.o environment.o \
-			temp_alloc.o libs/string.o libs/hash_table.o
+			libs/temp_alloc.o libs/string.o libs/hash_table.o
 	$(CC) $^ -o $@ $(LIBS)
 
 parser.o: parser.c libs/error.h
@@ -34,6 +34,9 @@ libs/string.o: libs/string.c libs/string.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 libs/hash_table.o: libs/hash_table.c libs/hash_table.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+libs/temp_alloc.o: libs/temp_alloc.c libs/temp_alloc.h
 	$(CC) $(CFLAGS) -c $< -o $@
 ### BUILDING LIBS END ###
 

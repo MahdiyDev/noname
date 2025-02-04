@@ -1,9 +1,10 @@
+#include "libs/temp_alloc.h"
 #include "statement.h"
 #include "expression.h"
 
 struct Stmt* create_expression_stmt(struct Expr* expression)
 {
-    struct Stmt* stmt = malloc(sizeof(struct Stmt));
+    struct Stmt* stmt = temp_alloc(sizeof(struct Stmt));
     stmt->type = STMT_EXPRESSION;
     stmt->expression.expression = expression;
     return stmt;
@@ -11,7 +12,7 @@ struct Stmt* create_expression_stmt(struct Expr* expression)
 
 struct Stmt* create_print_stmt(struct Expr* expression)
 {
-    struct Stmt* stmt = malloc(sizeof(struct Stmt));
+    struct Stmt* stmt = temp_alloc(sizeof(struct Stmt));
     stmt->type = STMT_PRINT;
     stmt->print.expression = expression;
     return stmt;
@@ -19,7 +20,7 @@ struct Stmt* create_print_stmt(struct Expr* expression)
 
 struct Stmt* create_variable_stmt(lexer_token name, struct Expr* initializer)
 {
-    struct Stmt* stmt = malloc(sizeof(struct Stmt));
+    struct Stmt* stmt = temp_alloc(sizeof(struct Stmt));
     stmt->type = STMT_VAR;
     stmt->variable.name = name;
     stmt->variable.initializer = initializer;
@@ -28,7 +29,7 @@ struct Stmt* create_variable_stmt(lexer_token name, struct Expr* initializer)
 
 struct Stmt* create_block_stmt(Stmts* statements)
 {
-    struct Stmt* stmt = malloc(sizeof(struct Stmt));
+    struct Stmt* stmt = temp_alloc(sizeof(struct Stmt));
     stmt->type = STMT_BLOCK;
     stmt->block.statements = statements;
     return stmt;
@@ -36,7 +37,7 @@ struct Stmt* create_block_stmt(Stmts* statements)
 
 struct Stmt* create_if_stmt(struct Expr* condition, struct Stmt* then_branch, struct Stmt* else_branch)
 {
-    struct Stmt* stmt = malloc(sizeof(struct Stmt));
+    struct Stmt* stmt = temp_alloc(sizeof(struct Stmt));
     stmt->type = STMT_IF;
     stmt->if_stmt.condition = condition;
     stmt->if_stmt.then_branch = then_branch;
@@ -46,7 +47,7 @@ struct Stmt* create_if_stmt(struct Expr* condition, struct Stmt* then_branch, st
 
 struct Stmt* create_while_stmt(struct Expr* condition, struct Stmt* body)
 {
-    struct Stmt* stmt = malloc(sizeof(struct Stmt));
+    struct Stmt* stmt = temp_alloc(sizeof(struct Stmt));
     stmt->type = STMT_WHILE;
     stmt->while_stmt.condition = condition;
     stmt->while_stmt.body = body;
@@ -81,5 +82,5 @@ void free_stmt(struct Stmt* stmt)
         break;
     }
 
-    free(stmt);
+    temp_free(stmt);
 }

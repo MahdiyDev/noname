@@ -1,6 +1,6 @@
 #include "environment.h"
 #include "libs/hash_table.h"
-#include "temp_alloc.h"
+#include "libs/temp_alloc.h"
 
 #define ht_insert_int(ht, key, value) ht_insert_generic_value(ht, key, int, value)
 #define ht_search_int(ht, key)        ht_search_generic_value(ht, key, int)
