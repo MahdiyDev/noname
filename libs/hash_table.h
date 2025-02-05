@@ -16,7 +16,7 @@ typedef struct {
 
     size_t base_capacity;
 
-    temp_allocator temp;
+    temp_allocator allocator;
 } hash_table;
 
 hash_table* ht_init();

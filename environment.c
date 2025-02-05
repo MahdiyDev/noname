@@ -6,7 +6,7 @@
 #define ht_insert_int(ht, key, value) ht_insert_generic_value(ht, key, int, value)
 #define ht_search_int(ht, key)        ht_search_generic_value(ht, key, int)
 
-char* string_view_to_char(temp_allocator allocator, string_view s)
+char* string_view_to_char(string_view s)
 {
     static char n[256];
     ht_to_char(n, (void*)s.data, s.count + 1);
@@ -35,7 +35,7 @@ void env_destroy(struct Enviroment* env)
 
 void env_define(struct Enviroment* env, string_view name, int value)
 {
-    char* n = string_view_to_char(env->allocator, name);
+    char* n = string_view_to_char(name);
 
     ht_insert_int(env->values, n, value);
     // temp_free(n);
@@ -45,7 +45,7 @@ struct Error* env_get(struct Enviroment* env, lexer_token name, int* value)
 {
     struct Error* error = NULL;
 
-    char* n = string_view_to_char(env->allocator, name.lexeme);
+    char* n = string_view_to_char(name.lexeme);
 
     if (ht_has(env->values, n)) {
         *value = *ht_search_int(env->values, n);
@@ -65,7 +65,7 @@ struct Error* env_assign(struct Enviroment* env, lexer_token name, int value)
 {    
     struct Error* error = NULL;
 
-    char* n = string_view_to_char(env->allocator, name.lexeme);
+    char* n = string_view_to_char(name.lexeme);
 
     if (ht_has(env->values, n)) {
         int* current_value = ht_search_int(env->values, n);

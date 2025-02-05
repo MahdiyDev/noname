@@ -64,20 +64,20 @@ size_t ht_get_hash(const char* s, const size_t num_buckets, const size_t attempt
 
 ht_item* ht_new_item(hash_table* ht, const char* k, void* v, int value_size)
 {
-    ht_item* i = temp_alloc(ht->temp, sizeof(ht_item));
+    ht_item* i = temp_alloc(ht->allocator, sizeof(ht_item));
     if (!i) {
         perror("Failed to allocate memory for ht_item");
         exit(EXIT_FAILURE);
     }
 
-    i->key = temp_strdup(ht->temp, k);  // Duplicate the key
+    i->key = temp_strdup(ht->allocator, k);  // Duplicate the key
     if (!i->key) {
         perror("Failed to allocate memory for key");
         temp_free(i);
         exit(EXIT_FAILURE);
     }
 
-    i->value = temp_alloc(ht->temp, value_size);
+    i->value = temp_alloc(ht->allocator, value_size);
     if (!i->value) {
         perror("Failed to allocate memory for value");
         temp_free(i);
@@ -92,15 +92,15 @@ ht_item* ht_new_item(hash_table* ht, const char* k, void* v, int value_size)
 
 hash_table* ht_init_with_capacity(const int base_capacity)
 {
-    temp_allocator temp = temp_init();
-    hash_table* ht = temp_alloc(temp, sizeof(hash_table));
+    temp_allocator allocator = temp_init();
+    hash_table* ht = temp_alloc(allocator, sizeof(hash_table));
 
-    ht->temp = temp;
+    ht->allocator = allocator;
     ht->base_capacity = base_capacity;
     ht->capacity = next_prime(ht->base_capacity);
 
     ht->count = 0;
-    ht->items = temp_alloc(ht->temp, (size_t)ht->capacity * sizeof(ht_item*));
+    ht->items = temp_alloc(ht->allocator, (size_t)ht->capacity * sizeof(ht_item*));
     return ht;
 }
 
@@ -129,7 +129,7 @@ void ht_free(hash_table* ht)
     temp_free(ht->items);
     temp_free(ht);
 
-    temp_uninit(ht->temp);
+    temp_uninit(ht->allocator);
 }
 
 void ht_insert(hash_table* ht, const char* key, void* value, int value_size)

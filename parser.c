@@ -8,541 +8,547 @@
 #include "expression.h"
 #include "lexer.h"
 
-struct Error* parse_expression(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result);
-struct Error* parse_declaration(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result);
-struct Error* parse_statement(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result);
+struct Parser {
+    temp_allocator allocator;
+    lexer* lexer;
+    lexer_token* token;
+};
 
-struct Error* consume_and_expect(lexer* l, lexer_token* t, const char* expexted_str)
+struct Error* parse_expression(struct Parser* parser, struct Expr** result);
+struct Error* parse_declaration(struct Parser* parser, struct Stmt** result);
+struct Error* parse_statement(struct Parser* parser, struct Stmt** result);
+
+struct Error* consume_and_expect(struct Parser* parser, const char* expexted_str)
 {
-    if (!sv_equal_cstr(t->lexeme, expexted_str)) {
-        return error_f("at %s:%zu:%zu Expected '%s' but got '%.*s'", lex_loc_fmt_ptr(t), expexted_str, sv_fmt(t->lexeme));
+    if (!sv_equal_cstr(parser->token->lexeme, expexted_str)) {
+        return error_f("at %s:%zu:%zu Expected '%s' but got '%.*s'", lex_loc_fmt_ptr(parser->token), expexted_str, sv_fmt(parser->token->lexeme));
     }
-    lex_get_token(l, t); // Consume 'expexted_str'
+    lex_get_token(parser->lexer, parser->token); // Consume 'expexted_str'
     return NULL;
 }
 
-struct Error* ignore_newline(lexer* l, lexer_token* t)
+struct Error* ignore_newline(struct Parser* parser)
 {
-    while (t->id == LEXER_NEWLINE) {
-        if (!lex_get_token(l, t) || t->id == LEXER_END) {
+    while (parser->token->id == LEXER_NEWLINE) {
+        if (!lex_get_token(parser->lexer, parser->token) || parser->token->id == LEXER_END) {
             break;
         }
     }
 
-    if (t->id == LEXER_END) {
-        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt_ptr(t));
+    if (parser->token->id == LEXER_END) {
+        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt_ptr(parser->token));
     }
     return NULL;
 }
 
-struct Error* parse_primary(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_primary(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
 
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
-    if (t->id == LEXER_INT) {
-        *result = create_literal_expr(allocator, t->int_value);
-        lex_get_token(l, t); // Advance to the next token
+    if (parser->token->id == LEXER_INT) {
+        *result = create_literal_expr(parser->allocator, parser->token->int_value);
+        lex_get_token(parser->lexer, parser->token); // Advance to the next token
         return NULL;
     }
 
-    if (t->id == LEXER_SYMBOL) {
-        *result = create_variable_expr(allocator, *t);
-        lex_get_token(l, t); // Advance to the next token
+    if (parser->token->id == LEXER_SYMBOL) {
+        *result = create_variable_expr(parser->allocator, *parser->token);
+        lex_get_token(parser->lexer, parser->token); // Advance to the next token
         return NULL;
     }
 
-    if (t->id == LEXER_PUNCT && sv_equal_cstr(t->lexeme, "(")) {
-        lex_get_token(l, t); // Consume '('
+    if (parser->token->id == LEXER_PUNCT && sv_equal_cstr(parser->token->lexeme, "(")) {
+        lex_get_token(parser->lexer, parser->token); // Consume '('
 
-        if (has_error(parse_expression(allocator, l, t, result))) {
+        if (has_error(parse_expression(parser, result))) {
             return trace(error);
         }
 
-        if (has_error(consume_and_expect(l, t, ")"))) {
+        if (has_error(consume_and_expect(parser, ")"))) {
             return trace(error);
         }
 
-        *result = create_group_expr(allocator, *result);
+        *result = create_group_expr(parser->allocator, *result);
         return NULL;
     }
 
-    return error_f("at %s:%zu:%zu Unexpected token '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(t->lexeme));
+    return error_f("at %s:%zu:%zu Unexpected token '%.*s'", lex_loc_fmt_ptr(parser->token), sv_fmt(parser->token->lexeme));
 }
 
-struct Error* parse_unary(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_unary(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
 
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
-    if (sv_in_carr(t->lexeme, to_c_array(const char*, "!", "-"))) {
-        lexer_token operator_tok = *t;
-        lex_get_token(l, t); // Consume operator
+    if (sv_in_carr(parser->token->lexeme, to_c_array(const char*, "!", "-"))) {
+        lexer_token operator_tok = *parser->token;
+        lex_get_token(parser->lexer, parser->token); // Consume operator
 
         struct Expr* right = NULL;
-        if (has_error(parse_unary(allocator, l, t, &right))) {
+        if (has_error(parse_unary(parser, &right))) {
             return trace(error);
         }
 
-        *result = create_unary_expr(allocator, operator_tok, right);
+        *result = create_unary_expr(parser->allocator, operator_tok, right);
         return NULL;
     }
 
-    return trace(parse_primary(allocator, l, t, result));
+    return trace(parse_primary(parser, result));
 }
 
-struct Error* parse_factor(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_factor(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
-    if (has_error(parse_unary(allocator, l, t, result))) {
+    if (has_error(parse_unary(parser, result))) {
         return trace(error);
     }
 
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
-    while (sv_in_carr(t->lexeme, to_c_array(const char*, "/", "*"))) {
-        lexer_token operator_tok = *t; // Save the current operator
+    while (sv_in_carr(parser->token->lexeme, to_c_array(const char*, "/", "*"))) {
+        lexer_token operator_tok = *parser->token; // Save the current operator
 
-        if (!lex_get_token(l, t)) {
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
+        if (!lex_get_token(parser->lexer, parser->token)) {
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(parser->token), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_unary(allocator, l, t, &right))) {
+        if (has_error(parse_unary(parser, &right))) {
             return trace(error);
         }
 
-        *result = create_binary_expr(allocator, *result, operator_tok, right);
+        *result = create_binary_expr(parser->allocator, *result, operator_tok, right);
     }
 
     return NULL;
 }
 
-struct Error* parse_term(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_term(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
-    if (has_error(parse_factor(allocator, l, t, result))) {
+    if (has_error(parse_factor(parser, result))) {
         return trace(error);
     }
 
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
-    while (sv_in_carr(t->lexeme, to_c_array(const char*, "-", "+"))) {
-        lexer_token operator_tok = *t; // Save the current operator
+    while (sv_in_carr(parser->token->lexeme, to_c_array(const char*, "-", "+"))) {
+        lexer_token operator_tok = *parser->token; // Save the current operator
 
-        if (!lex_get_token(l, t)) {
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
+        if (!lex_get_token(parser->lexer, parser->token)) {
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(parser->token), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_factor(allocator, l, t, &right))) {
+        if (has_error(parse_factor(parser, &right))) {
             return trace(error);
         }
 
-        *result = create_binary_expr(allocator, *result, operator_tok, right);
+        *result = create_binary_expr(parser->allocator, *result, operator_tok, right);
     }
 
     return NULL;
 }
 
-struct Error* parse_comparison(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_comparison(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
-    if (has_error(parse_term(allocator, l, t, result))) {
+    if (has_error(parse_term(parser, result))) {
         return trace(error);
     }
 
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
-    while (sv_in_carr(t->lexeme, to_c_array(const char*, ">", ">=", "<", "<="))) {
-        lexer_token operator_tok = *t; // Save the current operator
+    while (sv_in_carr(parser->token->lexeme, to_c_array(const char*, ">", ">=", "<", "<="))) {
+        lexer_token operator_tok = *parser->token; // Save the current operator
 
-        if (!lex_get_token(l, t)) {
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
+        if (!lex_get_token(parser->lexer, parser->token)) {
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(parser->token), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_term(allocator, l, t, &right))) {
+        if (has_error(parse_term(parser, &right))) {
             return trace(error);
         }
 
-        *result = create_binary_expr(allocator, *result, operator_tok, right);
+        *result = create_binary_expr(parser->allocator, *result, operator_tok, right);
     }
 
     return NULL;
 }
 
-struct Error* parse_equality(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_equality(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
-    if (has_error(parse_comparison(allocator, l, t, result))) {
+    if (has_error(parse_comparison(parser, result))) {
         return trace(error);
     }
 
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
-    while (sv_in_carr(t->lexeme, to_c_array(const char*, "!=", "=="))) {
-        lexer_token operator_tok = *t; // Save the current operator
+    while (sv_in_carr(parser->token->lexeme, to_c_array(const char*, "!=", "=="))) {
+        lexer_token operator_tok = *parser->token; // Save the current operator
 
-        if (!lex_get_token(l, t)) {
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
+        if (!lex_get_token(parser->lexer, parser->token)) {
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(parser->token), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_comparison(allocator, l, t, &right))) {
+        if (has_error(parse_comparison(parser, &right))) {
             return trace(error);
         }
 
-        *result = create_binary_expr(allocator, *result, operator_tok, right);
+        *result = create_binary_expr(parser->allocator, *result, operator_tok, right);
     }
 
     return NULL;
 }
 
-struct Error* parse_and(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_and(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
 
-    if (has_error(parse_equality(allocator, l, t, result))) {
+    if (has_error(parse_equality(parser, result))) {
         return trace(error);
     }
 
-    while (sv_equal_cstr(t->lexeme, "and")) {
-        lexer_token operator_tok = *t; // Save the current operator
+    while (sv_equal_cstr(parser->token->lexeme, "and")) {
+        lexer_token operator_tok = *parser->token; // Save the current operator
 
-        if (!lex_get_token(l, t)) {
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
+        if (!lex_get_token(parser->lexer, parser->token)) {
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(parser->token), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_equality(allocator, l, t, &right))) {
+        if (has_error(parse_equality(parser, &right))) {
             return trace(error);
         }
 
-        *result = create_logical_expr(allocator, *result, operator_tok, right);
+        *result = create_logical_expr(parser->allocator, *result, operator_tok, right);
     }
 
     return NULL;
 }
 
-struct Error* parse_or(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_or(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
 
-    if (has_error(parse_and(allocator, l, t, result))) {
+    if (has_error(parse_and(parser, result))) {
         return trace(error);
     }
 
-    while (sv_equal_cstr(t->lexeme, "or")) {
-        lexer_token operator_tok = *t; // Save the current operator
+    while (sv_equal_cstr(parser->token->lexeme, "or")) {
+        lexer_token operator_tok = *parser->token; // Save the current operator
 
-        if (!lex_get_token(l, t)) {
-            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(operator_tok.lexeme));
+        if (!lex_get_token(parser->lexer, parser->token)) {
+            return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(parser->token), sv_fmt(operator_tok.lexeme));
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_and(allocator, l, t, &right))) {
+        if (has_error(parse_and(parser, &right))) {
             return trace(error);
         }
 
-        *result = create_logical_expr(allocator, *result, operator_tok, right);
+        *result = create_logical_expr(parser->allocator, *result, operator_tok, right);
     }
 
     return NULL;
 }
 
-struct Error* parse_assignment(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_assignment(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
 
     struct Expr* expr = NULL;
-    if (has_error(parse_or(allocator, l, t, &expr))) {
+    if (has_error(parse_or(parser, &expr))) {
         return trace(error);
     }
 
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
-    if (sv_equal_cstr(t->lexeme, "=")) {
-        lexer_token equals = *t;
-        lex_get_token(l, t); // Consume equal '='
+    if (sv_equal_cstr(parser->token->lexeme, "=")) {
+        lexer_token equals = *parser->token;
+        lex_get_token(parser->lexer, parser->token); // Consume equal '='
 
         struct Expr* value = NULL;
-        if (has_error(parse_assignment(allocator, l, t, &value))) {
+        if (has_error(parse_assignment(parser, &value))) {
             return trace(error);
         }
 
         if (expr->type == EXPR_VAR) {
             lexer_token name = expr->variable.name;
-            *result = create_assign_expr(allocator, name, value);
+            *result = create_assign_expr(parser->allocator, name, value);
             return NULL;
         }
 
-        return error_f("at %s:%zu:%zu Invalid assignment target.", lex_loc_fmt_ptr(t));
+        return error_f("at %s:%zu:%zu Invalid assignment target.", lex_loc_fmt_ptr(parser->token));
     }
 
     *result = expr;
     return NULL;
 }
 
-struct Error* parse_expression(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_expression(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
 
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
-    return trace(parse_assignment(allocator, l, t, result));
+    return trace(parse_assignment(parser, result));
 }
 
-struct Error* parse_expression_statement(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_expression_statement(struct Parser* parser, struct Stmt** result)
 {
     struct Error* error = NULL;
 
     struct Expr* expr = NULL;
-    if (has_error(parse_expression(allocator, l, t, &expr))) {
+    if (has_error(parse_expression(parser, &expr))) {
         return trace(error);
     }
 
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
-    if (has_error(consume_and_expect(l, t, ";"))) {
+    if (has_error(consume_and_expect(parser, ";"))) {
         return trace(error);
     }
 
-    *result = create_expression_stmt(allocator, expr);
+    *result = create_expression_stmt(parser->allocator, expr);
 
     return NULL;
 }
 
-struct Error* parse_if_statement(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_if_statement(struct Parser* parser, struct Stmt** result)
 {
     struct Error* error = NULL;
-    lex_get_token(l, t); // Consume 'if'
+    lex_get_token(parser->lexer, parser->token); // Consume 'if'
 
-    if (has_error(consume_and_expect(l, t, "("))) {
+    if (has_error(consume_and_expect(parser, "("))) {
         return trace(error);
     }
 
     struct Expr* condition = NULL;
-    if (has_error(parse_expression(allocator, l, t, &condition))) {
+    if (has_error(parse_expression(parser, &condition))) {
         return trace(error);
     }
 
-    if (has_error(consume_and_expect(l, t, ")"))) {
+    if (has_error(consume_and_expect(parser, ")"))) {
         return trace(error);
     }
 
     struct Stmt* then_branch = NULL;
-    if (has_error(parse_declaration(allocator, l, t, &then_branch))) {
+    if (has_error(parse_declaration(parser, &then_branch))) {
         return trace(error);
     }
 
     struct Stmt* else_branch = NULL;
-    if (sv_equal_cstr(t->lexeme, "else")) {
-        lex_get_token(l, t); // Consume 'else'
+    if (sv_equal_cstr(parser->token->lexeme, "else")) {
+        lex_get_token(parser->lexer, parser->token); // Consume 'else'
 
-        if (has_error(parse_declaration(allocator, l, t, &else_branch))) {
+        if (has_error(parse_declaration(parser, &else_branch))) {
             return trace(error);
         }
     }
 
-    *result = create_if_stmt(allocator, condition, then_branch, else_branch);
+    *result = create_if_stmt(parser->allocator, condition, then_branch, else_branch);
 
     return NULL;
 }
 
-struct Error* parse_print_statement(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_print_statement(struct Parser* parser, struct Stmt** result)
 {
     struct Error* error = NULL;
-    lex_get_token(l, t); // Consume 'print'
+    lex_get_token(parser->lexer, parser->token); // Consume 'print'
 
-    if (has_error(consume_and_expect(l, t, "("))) {
+    if (has_error(consume_and_expect(parser, "("))) {
         return trace(error);
     }
 
     struct Expr* value = NULL;
-    if (has_error(parse_expression(allocator, l, t, &value))) {
+    if (has_error(parse_expression(parser, &value))) {
         return trace(error);
     }
 
-    if (has_error(consume_and_expect(l, t, ")"))) {
+    if (has_error(consume_and_expect(parser, ")"))) {
         return trace(error);
     }
 
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
-    if (has_error(consume_and_expect(l, t, ";"))) {
+    if (has_error(consume_and_expect(parser, ";"))) {
         return trace(error);
     }
 
-    *result = create_print_stmt(allocator, value);
+    *result = create_print_stmt(parser->allocator, value);
 
     return NULL;
 }
 
-struct Error* parse_while_statement(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_while_statement(struct Parser* parser, struct Stmt** result)
 {
     struct Error* error = NULL;
-    lex_get_token(l, t); // Consume 'while'
+    lex_get_token(parser->lexer, parser->token); // Consume 'while'
 
-    if (has_error(consume_and_expect(l, t, "("))) {
+    if (has_error(consume_and_expect(parser, "("))) {
         return trace(error);
     }
 
     struct Expr* condition = NULL;
-    if (has_error(parse_expression(allocator, l, t, &condition))) {
+    if (has_error(parse_expression(parser, &condition))) {
         return trace(error);
     }
 
-    if (has_error(consume_and_expect(l, t, ")"))) {
+    if (has_error(consume_and_expect(parser, ")"))) {
         return trace(error);
     }
 
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
     struct Stmt* body = NULL;
-    if (has_error(parse_declaration(allocator, l, t, &body))) {
+    if (has_error(parse_declaration(parser, &body))) {
         return trace(error);
     }
 
-    *result = create_while_stmt(allocator, condition, body);
+    *result = create_while_stmt(parser->allocator, condition, body);
 
     return NULL;
 }
 
-struct Error* parse_block(temp_allocator allocator, lexer* l, lexer_token* t, Stmts** result)
+struct Error* parse_block(struct Parser* parser, Stmts** result)
 {
     struct Error* error = NULL;
 
-    lex_get_token(l, t); // Consume '{'
+    lex_get_token(parser->lexer, parser->token); // Consume '{'
     
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
     Stmts* statements = NULL;
     da_init(statements);
 
-    while (!sv_equal_cstr(t->lexeme, "}") && t->id != LEXER_END) {
+    while (!sv_equal_cstr(parser->token->lexeme, "}") && parser->token->id != LEXER_END) {
         struct Stmt* statement = NULL;
-        if (has_error(parse_declaration(allocator, l, t, &statement))) {
+        if (has_error(parse_declaration(parser, &statement))) {
             return trace(error);
         }
 
         da_append(statements, statement);
 
-        if (has_error(ignore_newline(l, t))) {
+        if (has_error(ignore_newline(parser))) {
             return trace(error);
         }
     }
 
-    lex_get_token(l, t); // Consume '}'
+    lex_get_token(parser->lexer, parser->token); // Consume '}'
 
     *result = statements;
     return NULL;
 }
 
-struct Error* parse_statement(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_statement(struct Parser* parser, struct Stmt** result)
 {
     struct Error* error = NULL;
     
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
-    if (sv_equal_cstr(t->lexeme, "if")) return trace(parse_if_statement(allocator, l, t, result));
-    if (sv_equal_cstr(t->lexeme, "print")) return trace(parse_print_statement(allocator, l, t, result));
-    if (sv_equal_cstr(t->lexeme, "while")) return trace(parse_while_statement(allocator, l, t, result));
-    if (sv_equal_cstr(t->lexeme, "{")) {
+    if (sv_equal_cstr(parser->token->lexeme, "if")) return trace(parse_if_statement(parser, result));
+    if (sv_equal_cstr(parser->token->lexeme, "print")) return trace(parse_print_statement(parser, result));
+    if (sv_equal_cstr(parser->token->lexeme, "while")) return trace(parse_while_statement(parser, result));
+    if (sv_equal_cstr(parser->token->lexeme, "{")) {
         Stmts* statements = NULL;
 
-        if (has_error(parse_block(allocator, l, t, &statements))) {
+        if (has_error(parse_block(parser, &statements))) {
             return trace(error);
         }
 
-        *result = create_block_stmt(allocator, statements);
+        *result = create_block_stmt(parser->allocator, statements);
         return NULL;
     }
 
-    return trace(parse_expression_statement(allocator, l, t, result));
+    return trace(parse_expression_statement(parser, result));
 }
 
-struct Error* parse_varaible_declaration(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_varaible_declaration(struct Parser* parser, struct Stmt** result)
 {
     struct Error* error = NULL;
-    lex_get_token(l, t); // Consume 'var'
+    lex_get_token(parser->lexer, parser->token); // Consume 'var'
 
-    lexer_token name = *t;
+    lexer_token name = *parser->token;
 
     struct Expr* initializer = NULL;
 
-    lex_get_token(l, t); // Consume 'var name'
+    lex_get_token(parser->lexer, parser->token); // Consume 'var name'
     
-    if (sv_equal_cstr(t->lexeme, "=")) {
-        lex_get_token(l, t); // Consume '='
-        if (has_error(parse_expression(allocator, l, t, &initializer))) {
+    if (sv_equal_cstr(parser->token->lexeme, "=")) {
+        lex_get_token(parser->lexer, parser->token); // Consume '='
+        if (has_error(parse_expression(parser, &initializer))) {
             return trace(error);
         }
     }
     
-    if (has_error(consume_and_expect(l, t, ";"))) {
+    if (has_error(consume_and_expect(parser, ";"))) {
         return trace(error);
     }
     
-    *result = create_variable_stmt(allocator, name, initializer);
+    *result = create_variable_stmt(parser->allocator, name, initializer);
 
     return NULL;
 }
 
-struct Error* parse_declaration(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_declaration(struct Parser* parser, struct Stmt** result)
 {   
     struct Error* error = NULL;
     
-    if (has_error(ignore_newline(l, t))) {
+    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
-    if (sv_equal_cstr(t->lexeme, "var")) return trace(parse_varaible_declaration(allocator, l, t, result));
+    if (sv_equal_cstr(parser->token->lexeme, "var")) return trace(parse_varaible_declaration(parser, result));
 
-    return trace(parse_statement(allocator, l, t, result));
+    return trace(parse_statement(parser, result));
 }
 
-struct Error* parse(temp_allocator allocator, lexer* l, lexer_token* t, Stmts* result)
+struct Error* parse(struct Parser* parser, Stmts* result)
 {
     struct Error* error = NULL;
 
-    lex_get_token(l, t); // Get first token
+    lex_get_token(parser->lexer, parser->token); // Get first token
 
-    while (t->id != LEXER_END) {
-        if (has_error(ignore_newline(l, t))) {
+    while (parser->token->id != LEXER_END) {
+        if (has_error(ignore_newline(parser))) {
             return NULL;
         }
 
         struct Stmt* stmt = NULL;
-        if (has_error(parse_declaration(allocator, l, t, &stmt))) {
+        if (has_error(parse_declaration(parser, &stmt))) {
             return trace(error);
         }
         da_append(result, stmt);
@@ -592,7 +598,13 @@ int main(int argc, char** argv)
 
     temp_allocator allocator = temp_init();
 
-    if (has_error(parse(allocator, &l, &t, stmts))) {
+    struct Parser parser;
+
+    parser.lexer = &l;
+    parser.token = &t;
+    parser.allocator = allocator;
+
+    if (has_error(parse(&parser, stmts))) {
         print_error(error);
 
         for (size_t i = 0; i < stmts->count; i++) {

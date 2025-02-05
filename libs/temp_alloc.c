@@ -24,7 +24,7 @@ temp_allocator temp_init()
             return (temp_allocator) { i, 0 };
         }
     }
-    
+
     fprintf(stderr, "Cannot allocate memory.\n");
     exit(EXIT_FAILURE);
 }
