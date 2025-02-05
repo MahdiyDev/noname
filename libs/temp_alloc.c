@@ -21,7 +21,6 @@ temp_allocator temp_init()
     for (size_t i = 0; i < TEMP_INIT_COUNT; i++) {
         if (!temp_used[i]) {  // Find an available allocator
             temp_used[i] = true;
-            memset(temp_memory[i], 0, TEMP_CAPACITY);
             return (temp_allocator) { i, 0 };
         }
     }
@@ -29,6 +28,7 @@ temp_allocator temp_init()
     fprintf(stderr, "Cannot allocate memory.\n");
     exit(EXIT_FAILURE);
 }
+
 
 void temp_uninit(temp_allocator allocator)
 {
@@ -45,6 +45,8 @@ void* temp_alloc(temp_allocator allocator, size_t size)
         if (!block->used && (allocator.temp_count + sizeof(block_header) + size <= TEMP_CAPACITY)) {
             block->size = size;
             block->used = true;
+            void* data_ptr = &temp_memory[allocator.temp_index][allocator.temp_count + sizeof(block_header)];
+            memset(data_ptr, 0, size); 
             return &temp_memory[allocator.temp_index][allocator.temp_count + sizeof(block_header)];
         }
         allocator.temp_count += sizeof(block_header) + block->size;
