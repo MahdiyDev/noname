@@ -7,7 +7,6 @@
 #define PRIME_IMPLEMENTATION
 #include "prime.h"
 #include "hash_table.h"
-#include "temp_alloc.h"
 
 // Specific prime number for reduce collisions 
 #define HT_INITIAL_BASE_SIZE 53
@@ -63,26 +62,26 @@ size_t ht_get_hash(const char* s, const size_t num_buckets, const size_t attempt
 }
 
 
-ht_item* ht_new_item(const char* k, void* v, int value_size)
+ht_item* ht_new_item(hash_table* ht, const char* k, void* v, int value_size)
 {
-    ht_item* i = temp_alloc(sizeof(ht_item));
+    ht_item* i = temp_alloc(ht->temp, sizeof(ht_item));
     if (!i) {
         perror("Failed to allocate memory for ht_item");
         exit(EXIT_FAILURE);
     }
 
-    i->key = temp_strdup(k);  // Duplicate the key
+    i->key = temp_strdup(ht->temp, k);  // Duplicate the key
     if (!i->key) {
         perror("Failed to allocate memory for key");
         temp_free(i);
         exit(EXIT_FAILURE);
     }
 
-    i->value = temp_alloc(value_size);
+    i->value = temp_alloc(ht->temp, value_size);
     if (!i->value) {
         perror("Failed to allocate memory for value");
-        temp_free(i->key);
         temp_free(i);
+        temp_free(i->key);
         exit(EXIT_FAILURE);
     }
 
@@ -93,13 +92,15 @@ ht_item* ht_new_item(const char* k, void* v, int value_size)
 
 hash_table* ht_init_with_capacity(const int base_capacity)
 {
-    hash_table* ht = temp_alloc(sizeof(hash_table));
-    ht->base_capacity = base_capacity;
+    temp_allocator temp = temp_init();
+    hash_table* ht = temp_alloc(temp, sizeof(hash_table));
 
+    ht->temp = temp;
+    ht->base_capacity = base_capacity;
     ht->capacity = next_prime(ht->base_capacity);
 
     ht->count = 0;
-    ht->items = temp_alloc((size_t)ht->capacity * sizeof(ht_item*));
+    ht->items = temp_alloc(ht->temp, (size_t)ht->capacity * sizeof(ht_item*));
     return ht;
 }
 
@@ -110,8 +111,8 @@ hash_table* ht_init()
 
 void ht_del_item(ht_item* i)
 {
-    temp_free(i->key);
     temp_free(i->value);
+    temp_free(i->key);
     temp_free(i);
 }
 
@@ -127,6 +128,8 @@ void ht_free(hash_table* ht)
     }
     temp_free(ht->items);
     temp_free(ht);
+
+    temp_uninit(ht->temp);
 }
 
 void ht_insert(hash_table* ht, const char* key, void* value, int value_size)
@@ -136,7 +139,7 @@ void ht_insert(hash_table* ht, const char* key, void* value, int value_size)
         ht_resize_up(ht);
     }
 
-    ht_item* new_item = ht_new_item(key, value, value_size);
+    ht_item* new_item = ht_new_item(ht, key, value, value_size);
     int index = ht_get_hash(new_item->key, ht->capacity, 0);
     ht_item* cur_item = ht->items[index];
     int i = 1;
@@ -154,6 +157,7 @@ void* ht_search(hash_table* ht, const char* key)
     int index = ht_get_hash(key, ht->capacity, 0);
     ht_item* item = ht->items[index];
     int i = 1;
+
     while (item != NULL) {
         if (item != &HT_DELETED_ITEM) {
             if (strcmp(item->key, key) == 0) {
@@ -236,18 +240,3 @@ void ht_resize_down(hash_table* ht)
     const int new_size = ht->base_capacity / 2;
     ht_resize(ht, new_size);
 }
-
-// int main()
-// {
-//     hash_table* ht = ht_init();
-
-//     ht_insert(ht, "Hello1", "val1e", 6);
-//     ht_insert(ht, "Hello2", "val2e", 6);
-//     ht_insert(ht, "Hello3", "val3e", 6);
-
-//     printf("value: %s\n", (char*)ht_search(ht, "Hello3"));
-//     printf("value: %s\n", (char*)ht_search(ht, "Hello2"));
-//     printf("value: %s\n", (char*)ht_search(ht, "Hello1"));
-
-//     ht_free(ht);
-// }

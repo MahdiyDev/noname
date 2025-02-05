@@ -2,14 +2,15 @@
 #include "libs/dynamic_array.h"
 #include "libs/error.h"
 #include "libs/string.h"
+#include "libs/temp_alloc.h"
 #include "statement.h"
 #include "string.h"
 #include "expression.h"
 #include "lexer.h"
 
-struct Error* parse_expression(lexer* l, lexer_token* t, struct Expr** result);
-struct Error* parse_declaration(lexer* l, lexer_token* t, struct Stmt** result);
-struct Error* parse_statement(lexer* l, lexer_token* t, struct Stmt** result);
+struct Error* parse_expression(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result);
+struct Error* parse_declaration(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result);
+struct Error* parse_statement(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result);
 
 struct Error* consume_and_expect(lexer* l, lexer_token* t, const char* expexted_str)
 {
@@ -34,7 +35,7 @@ struct Error* ignore_newline(lexer* l, lexer_token* t)
     return NULL;
 }
 
-struct Error* parse_primary(lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_primary(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
 
@@ -43,13 +44,13 @@ struct Error* parse_primary(lexer* l, lexer_token* t, struct Expr** result)
     }
 
     if (t->id == LEXER_INT) {
-        *result = create_literal_expr(t->int_value);
+        *result = create_literal_expr(allocator, t->int_value);
         lex_get_token(l, t); // Advance to the next token
         return NULL;
     }
 
     if (t->id == LEXER_SYMBOL) {
-        *result = create_variable_expr(*t);
+        *result = create_variable_expr(allocator, *t);
         lex_get_token(l, t); // Advance to the next token
         return NULL;
     }
@@ -57,7 +58,7 @@ struct Error* parse_primary(lexer* l, lexer_token* t, struct Expr** result)
     if (t->id == LEXER_PUNCT && sv_equal_cstr(t->lexeme, "(")) {
         lex_get_token(l, t); // Consume '('
 
-        if (has_error(parse_expression(l, t, result))) {
+        if (has_error(parse_expression(allocator, l, t, result))) {
             return trace(error);
         }
 
@@ -65,14 +66,14 @@ struct Error* parse_primary(lexer* l, lexer_token* t, struct Expr** result)
             return trace(error);
         }
 
-        *result = create_group_expr(*result);
+        *result = create_group_expr(allocator, *result);
         return NULL;
     }
 
     return error_f("at %s:%zu:%zu Unexpected token '%.*s'", lex_loc_fmt_ptr(t), sv_fmt(t->lexeme));
 }
 
-struct Error* parse_unary(lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_unary(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
 
@@ -85,21 +86,21 @@ struct Error* parse_unary(lexer* l, lexer_token* t, struct Expr** result)
         lex_get_token(l, t); // Consume operator
 
         struct Expr* right = NULL;
-        if (has_error(parse_unary(l, t, &right))) {
+        if (has_error(parse_unary(allocator, l, t, &right))) {
             return trace(error);
         }
 
-        *result = create_unary_expr(operator_tok, right);
+        *result = create_unary_expr(allocator, operator_tok, right);
         return NULL;
     }
 
-    return trace(parse_primary(l, t, result));
+    return trace(parse_primary(allocator, l, t, result));
 }
 
-struct Error* parse_factor(lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_factor(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
-    if (has_error(parse_unary(l, t, result))) {
+    if (has_error(parse_unary(allocator, l, t, result))) {
         return trace(error);
     }
 
@@ -115,20 +116,20 @@ struct Error* parse_factor(lexer* l, lexer_token* t, struct Expr** result)
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_unary(l, t, &right))) {
+        if (has_error(parse_unary(allocator, l, t, &right))) {
             return trace(error);
         }
 
-        *result = create_binary_expr(*result, operator_tok, right);
+        *result = create_binary_expr(allocator, *result, operator_tok, right);
     }
 
     return NULL;
 }
 
-struct Error* parse_term(lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_term(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
-    if (has_error(parse_factor(l, t, result))) {
+    if (has_error(parse_factor(allocator, l, t, result))) {
         return trace(error);
     }
 
@@ -144,20 +145,20 @@ struct Error* parse_term(lexer* l, lexer_token* t, struct Expr** result)
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_factor(l, t, &right))) {
+        if (has_error(parse_factor(allocator, l, t, &right))) {
             return trace(error);
         }
 
-        *result = create_binary_expr(*result, operator_tok, right);
+        *result = create_binary_expr(allocator, *result, operator_tok, right);
     }
 
     return NULL;
 }
 
-struct Error* parse_comparison(lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_comparison(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
-    if (has_error(parse_term(l, t, result))) {
+    if (has_error(parse_term(allocator, l, t, result))) {
         return trace(error);
     }
 
@@ -173,20 +174,20 @@ struct Error* parse_comparison(lexer* l, lexer_token* t, struct Expr** result)
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_term(l, t, &right))) {
+        if (has_error(parse_term(allocator, l, t, &right))) {
             return trace(error);
         }
 
-        *result = create_binary_expr(*result, operator_tok, right);
+        *result = create_binary_expr(allocator, *result, operator_tok, right);
     }
 
     return NULL;
 }
 
-struct Error* parse_equality(lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_equality(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
-    if (has_error(parse_comparison(l, t, result))) {
+    if (has_error(parse_comparison(allocator, l, t, result))) {
         return trace(error);
     }
 
@@ -202,21 +203,21 @@ struct Error* parse_equality(lexer* l, lexer_token* t, struct Expr** result)
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_comparison(l, t, &right))) {
+        if (has_error(parse_comparison(allocator, l, t, &right))) {
             return trace(error);
         }
 
-        *result = create_binary_expr(*result, operator_tok, right);
+        *result = create_binary_expr(allocator, *result, operator_tok, right);
     }
 
     return NULL;
 }
 
-struct Error* parse_and(lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_and(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
 
-    if (has_error(parse_equality(l, t, result))) {
+    if (has_error(parse_equality(allocator, l, t, result))) {
         return trace(error);
     }
 
@@ -228,21 +229,21 @@ struct Error* parse_and(lexer* l, lexer_token* t, struct Expr** result)
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_equality(l, t, &right))) {
+        if (has_error(parse_equality(allocator, l, t, &right))) {
             return trace(error);
         }
 
-        *result = create_logical_expr(*result, operator_tok, right);
+        *result = create_logical_expr(allocator, *result, operator_tok, right);
     }
 
     return NULL;
 }
 
-struct Error* parse_or(lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_or(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
 
-    if (has_error(parse_and(l, t, result))) {
+    if (has_error(parse_and(allocator, l, t, result))) {
         return trace(error);
     }
 
@@ -254,22 +255,22 @@ struct Error* parse_or(lexer* l, lexer_token* t, struct Expr** result)
         }
 
         struct Expr* right = NULL;
-        if (has_error(parse_and(l, t, &right))) {
+        if (has_error(parse_and(allocator, l, t, &right))) {
             return trace(error);
         }
 
-        *result = create_logical_expr(*result, operator_tok, right);
+        *result = create_logical_expr(allocator, *result, operator_tok, right);
     }
 
     return NULL;
 }
 
-struct Error* parse_assignment(lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_assignment(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
 
     struct Expr* expr = NULL;
-    if (has_error(parse_or(l, t, &expr))) {
+    if (has_error(parse_or(allocator, l, t, &expr))) {
         return trace(error);
     }
 
@@ -282,13 +283,13 @@ struct Error* parse_assignment(lexer* l, lexer_token* t, struct Expr** result)
         lex_get_token(l, t); // Consume equal '='
 
         struct Expr* value = NULL;
-        if (has_error(parse_assignment(l, t, &value))) {
+        if (has_error(parse_assignment(allocator, l, t, &value))) {
             return trace(error);
         }
 
         if (expr->type == EXPR_VAR) {
             lexer_token name = expr->variable.name;
-            *result = create_assign_expr(name, value);
+            *result = create_assign_expr(allocator, name, value);
             return NULL;
         }
 
@@ -299,7 +300,7 @@ struct Error* parse_assignment(lexer* l, lexer_token* t, struct Expr** result)
     return NULL;
 }
 
-struct Error* parse_expression(lexer* l, lexer_token* t, struct Expr** result)
+struct Error* parse_expression(temp_allocator allocator, lexer* l, lexer_token* t, struct Expr** result)
 {
     struct Error* error = NULL;
 
@@ -307,15 +308,15 @@ struct Error* parse_expression(lexer* l, lexer_token* t, struct Expr** result)
         return trace(error);
     }
 
-    return trace(parse_assignment(l, t, result));
+    return trace(parse_assignment(allocator, l, t, result));
 }
 
-struct Error* parse_expression_statement(lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_expression_statement(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
 {
     struct Error* error = NULL;
 
     struct Expr* expr = NULL;
-    if (has_error(parse_expression(l, t, &expr))) {
+    if (has_error(parse_expression(allocator, l, t, &expr))) {
         return trace(error);
     }
 
@@ -327,12 +328,12 @@ struct Error* parse_expression_statement(lexer* l, lexer_token* t, struct Stmt**
         return trace(error);
     }
 
-    *result = create_expression_stmt(expr);
+    *result = create_expression_stmt(allocator, expr);
 
     return NULL;
 }
 
-struct Error* parse_if_statement(lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_if_statement(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
 {
     struct Error* error = NULL;
     lex_get_token(l, t); // Consume 'if'
@@ -342,7 +343,7 @@ struct Error* parse_if_statement(lexer* l, lexer_token* t, struct Stmt** result)
     }
 
     struct Expr* condition = NULL;
-    if (has_error(parse_expression(l, t, &condition))) {
+    if (has_error(parse_expression(allocator, l, t, &condition))) {
         return trace(error);
     }
 
@@ -351,7 +352,7 @@ struct Error* parse_if_statement(lexer* l, lexer_token* t, struct Stmt** result)
     }
 
     struct Stmt* then_branch = NULL;
-    if (has_error(parse_declaration(l, t, &then_branch))) {
+    if (has_error(parse_declaration(allocator, l, t, &then_branch))) {
         return trace(error);
     }
 
@@ -359,17 +360,17 @@ struct Error* parse_if_statement(lexer* l, lexer_token* t, struct Stmt** result)
     if (sv_equal_cstr(t->lexeme, "else")) {
         lex_get_token(l, t); // Consume 'else'
 
-        if (has_error(parse_declaration(l, t, &else_branch))) {
+        if (has_error(parse_declaration(allocator, l, t, &else_branch))) {
             return trace(error);
         }
     }
 
-    *result = create_if_stmt(condition, then_branch, else_branch);
+    *result = create_if_stmt(allocator, condition, then_branch, else_branch);
 
     return NULL;
 }
 
-struct Error* parse_print_statement(lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_print_statement(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
 {
     struct Error* error = NULL;
     lex_get_token(l, t); // Consume 'print'
@@ -379,7 +380,7 @@ struct Error* parse_print_statement(lexer* l, lexer_token* t, struct Stmt** resu
     }
 
     struct Expr* value = NULL;
-    if (has_error(parse_expression(l, t, &value))) {
+    if (has_error(parse_expression(allocator, l, t, &value))) {
         return trace(error);
     }
 
@@ -395,12 +396,12 @@ struct Error* parse_print_statement(lexer* l, lexer_token* t, struct Stmt** resu
         return trace(error);
     }
 
-    *result = create_print_stmt(value);
+    *result = create_print_stmt(allocator, value);
 
     return NULL;
 }
 
-struct Error* parse_while_statement(lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_while_statement(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
 {
     struct Error* error = NULL;
     lex_get_token(l, t); // Consume 'while'
@@ -410,7 +411,7 @@ struct Error* parse_while_statement(lexer* l, lexer_token* t, struct Stmt** resu
     }
 
     struct Expr* condition = NULL;
-    if (has_error(parse_expression(l, t, &condition))) {
+    if (has_error(parse_expression(allocator, l, t, &condition))) {
         return trace(error);
     }
 
@@ -423,16 +424,16 @@ struct Error* parse_while_statement(lexer* l, lexer_token* t, struct Stmt** resu
     }
 
     struct Stmt* body = NULL;
-    if (has_error(parse_declaration(l, t, &body))) {
+    if (has_error(parse_declaration(allocator, l, t, &body))) {
         return trace(error);
     }
 
-    *result = create_while_stmt(condition, body);
+    *result = create_while_stmt(allocator, condition, body);
 
     return NULL;
 }
 
-struct Error* parse_block(lexer* l, lexer_token* t, Stmts** result)
+struct Error* parse_block(temp_allocator allocator, lexer* l, lexer_token* t, Stmts** result)
 {
     struct Error* error = NULL;
 
@@ -447,7 +448,7 @@ struct Error* parse_block(lexer* l, lexer_token* t, Stmts** result)
 
     while (!sv_equal_cstr(t->lexeme, "}") && t->id != LEXER_END) {
         struct Stmt* statement = NULL;
-        if (has_error(parse_declaration(l, t, &statement))) {
+        if (has_error(parse_declaration(allocator, l, t, &statement))) {
             return trace(error);
         }
 
@@ -464,7 +465,7 @@ struct Error* parse_block(lexer* l, lexer_token* t, Stmts** result)
     return NULL;
 }
 
-struct Error* parse_statement(lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_statement(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
 {
     struct Error* error = NULL;
     
@@ -472,24 +473,24 @@ struct Error* parse_statement(lexer* l, lexer_token* t, struct Stmt** result)
         return trace(error);
     }
 
-    if (sv_equal_cstr(t->lexeme, "if")) return trace(parse_if_statement(l, t, result));
-    if (sv_equal_cstr(t->lexeme, "print")) return trace(parse_print_statement(l, t, result));
-    if (sv_equal_cstr(t->lexeme, "while")) return trace(parse_while_statement(l, t, result));
+    if (sv_equal_cstr(t->lexeme, "if")) return trace(parse_if_statement(allocator, l, t, result));
+    if (sv_equal_cstr(t->lexeme, "print")) return trace(parse_print_statement(allocator, l, t, result));
+    if (sv_equal_cstr(t->lexeme, "while")) return trace(parse_while_statement(allocator, l, t, result));
     if (sv_equal_cstr(t->lexeme, "{")) {
         Stmts* statements = NULL;
 
-        if (has_error(parse_block(l, t, &statements))) {
+        if (has_error(parse_block(allocator, l, t, &statements))) {
             return trace(error);
         }
 
-        *result = create_block_stmt(statements);
+        *result = create_block_stmt(allocator, statements);
         return NULL;
     }
 
-    return trace(parse_expression_statement(l, t, result));
+    return trace(parse_expression_statement(allocator, l, t, result));
 }
 
-struct Error* parse_varaible_declaration(lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_varaible_declaration(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
 {
     struct Error* error = NULL;
     lex_get_token(l, t); // Consume 'var'
@@ -502,7 +503,7 @@ struct Error* parse_varaible_declaration(lexer* l, lexer_token* t, struct Stmt**
     
     if (sv_equal_cstr(t->lexeme, "=")) {
         lex_get_token(l, t); // Consume '='
-        if (has_error(parse_expression(l, t, &initializer))) {
+        if (has_error(parse_expression(allocator, l, t, &initializer))) {
             return trace(error);
         }
     }
@@ -511,12 +512,12 @@ struct Error* parse_varaible_declaration(lexer* l, lexer_token* t, struct Stmt**
         return trace(error);
     }
     
-    *result = create_variable_stmt(name, initializer);
+    *result = create_variable_stmt(allocator, name, initializer);
 
     return NULL;
 }
 
-struct Error* parse_declaration(lexer* l, lexer_token* t, struct Stmt** result)
+struct Error* parse_declaration(temp_allocator allocator, lexer* l, lexer_token* t, struct Stmt** result)
 {   
     struct Error* error = NULL;
     
@@ -524,12 +525,12 @@ struct Error* parse_declaration(lexer* l, lexer_token* t, struct Stmt** result)
         return trace(error);
     }
 
-    if (sv_equal_cstr(t->lexeme, "var")) return trace(parse_varaible_declaration(l, t, result));
+    if (sv_equal_cstr(t->lexeme, "var")) return trace(parse_varaible_declaration(allocator, l, t, result));
 
-    return trace(parse_statement(l, t, result));
+    return trace(parse_statement(allocator, l, t, result));
 }
 
-struct Error* parse(lexer* l, lexer_token* t, Stmts* result)
+struct Error* parse(temp_allocator allocator, lexer* l, lexer_token* t, Stmts* result)
 {
     struct Error* error = NULL;
 
@@ -541,7 +542,7 @@ struct Error* parse(lexer* l, lexer_token* t, Stmts* result)
         }
 
         struct Stmt* stmt = NULL;
-        if (has_error(parse_declaration(l, t, &stmt))) {
+        if (has_error(parse_declaration(allocator, l, t, &stmt))) {
             return trace(error);
         }
         da_append(result, stmt);
@@ -589,7 +590,9 @@ int main(int argc, char** argv)
     Stmts* stmts = NULL;
     da_init(stmts);
 
-    if (has_error(parse(&l, &t, stmts))) {
+    temp_allocator allocator = temp_init();
+
+    if (has_error(parse(allocator, &l, &t, stmts))) {
         print_error(error);
 
         for (size_t i = 0; i < stmts->count; i++) {

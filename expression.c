@@ -49,9 +49,9 @@ void accept(string_builder* sb, struct Expr* expr)
 }
 
 // Factory functions for creating expressions
-struct Expr* create_binary_expr(struct Expr* left, lexer_token operator, struct Expr* right)
+struct Expr* create_binary_expr(temp_allocator allocator, struct Expr* left, lexer_token operator, struct Expr* right)
 {
-    struct Expr* expr = temp_alloc(sizeof(struct Expr));
+    struct Expr* expr = temp_alloc(allocator, sizeof(struct Expr));
     expr->type = EXPR_BINARY;
     expr->binary.left = left;
     expr->binary.operator = operator;
@@ -59,51 +59,51 @@ struct Expr* create_binary_expr(struct Expr* left, lexer_token operator, struct 
     return expr;
 }
 
-struct Expr* create_unary_expr(lexer_token operator, struct Expr* right)
+struct Expr* create_unary_expr(temp_allocator allocator, lexer_token operator, struct Expr* right)
 {
-    struct Expr* expr = temp_alloc(sizeof(struct Expr));
+    struct Expr* expr = temp_alloc(allocator, sizeof(struct Expr));
     expr->type = EXPR_UNARY;
     expr->unary.operator = operator;
     expr->unary.right = right;
     return expr;
 }
 
-struct Expr* create_literal_expr(int value)
+struct Expr* create_literal_expr(temp_allocator allocator, int value)
 {
-    struct Expr* expr = temp_alloc(sizeof(struct Expr));
+    struct Expr* expr = temp_alloc(allocator, sizeof(struct Expr));
     expr->type = EXPR_LITERAL;
     expr->literal.value = value;
     return expr;
 }
 
-struct Expr* create_group_expr(struct Expr* expression)
+struct Expr* create_group_expr(temp_allocator allocator, struct Expr* expression)
 {
-    struct Expr* expr = temp_alloc(sizeof(struct Expr));
+    struct Expr* expr = temp_alloc(allocator, sizeof(struct Expr));
     expr->type = EXPR_GROUP;
     expr->group.expression = expression;
     return expr;
 }
 
-struct Expr* create_variable_expr(lexer_token name)
+struct Expr* create_variable_expr(temp_allocator allocator, lexer_token name)
 {
-    struct Expr* expr = temp_alloc(sizeof(struct Expr));
+    struct Expr* expr = temp_alloc(allocator, sizeof(struct Expr));
     expr->type = EXPR_VAR;
     expr->variable.name = name;
     return expr;
 }
 
-struct Expr* create_assign_expr(lexer_token name, struct Expr* value)
+struct Expr* create_assign_expr(temp_allocator allocator, lexer_token name, struct Expr* value)
 {
-    struct Expr* expr = temp_alloc(sizeof(struct Expr));
+    struct Expr* expr = temp_alloc(allocator, sizeof(struct Expr));
     expr->type = EXPR_ASSIGN;
     expr->assign.name = name;
     expr->assign.value = value;
     return expr;
 }
 
-struct Expr* create_logical_expr(struct Expr* left, lexer_token operator, struct Expr* right)
+struct Expr* create_logical_expr(temp_allocator allocator, struct Expr* left, lexer_token operator, struct Expr* right)
 {
-    struct Expr* expr = temp_alloc(sizeof(struct Expr));
+    struct Expr* expr = temp_alloc(allocator, sizeof(struct Expr));
     expr->type = EXPR_LOGICAL;
     expr->logical.left = left;
     expr->logical.operator = operator;

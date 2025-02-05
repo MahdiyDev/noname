@@ -1,73 +1,121 @@
 #include "temp_alloc.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
+#include <stdint.h>
 
-#define TEMP_CAPACITY (8*1024*1024)
+#define TEMP_CAPACITY   (1024 * 1024)   // 1MB
+#define TEMP_INIT_COUNT (10)            // 10MB
 
-static size_t temp_count = 0;
-static void* temp_memory[TEMP_CAPACITY] = {0};
+static uint8_t temp_memory[TEMP_INIT_COUNT][TEMP_CAPACITY] = {0};
+static bool temp_used[TEMP_INIT_COUNT] = {0}; 
 
-void* temp_alloc(size_t size)
+typedef struct {
+    size_t size;
+    bool used;
+} block_header;
+
+temp_allocator temp_init()
 {
-    if (temp_count + size > TEMP_CAPACITY) return NULL;
-    void *result = &temp_memory[temp_count];
-    temp_count += size;
-    return result;
+    for (size_t i = 0; i < TEMP_INIT_COUNT; i++) {
+        if (!temp_used[i]) {  // Find an available allocator
+            temp_used[i] = true;
+            memset(temp_memory[i], 0, TEMP_CAPACITY);
+            return (temp_allocator) { i, 0 };
+        }
+    }
+    
+    fprintf(stderr, "Cannot allocate memory.\n");
+    exit(EXIT_FAILURE);
 }
 
-void* temp_realloc(void* ptr, size_t new_size)
+void temp_uninit(temp_allocator allocator)
 {
-    if (new_size == 0) {
-        return NULL;
+    if (allocator.temp_index < TEMP_INIT_COUNT) {
+        temp_used[allocator.temp_index] = false;  // Mark as free
+    }
+}
+
+void* temp_alloc(temp_allocator allocator, size_t size)
+{
+    while (allocator.temp_count < TEMP_CAPACITY) {
+        block_header *block = (block_header *)&temp_memory[allocator.temp_index][allocator.temp_count];
+
+        if (!block->used && (allocator.temp_count + sizeof(block_header) + size <= TEMP_CAPACITY)) {
+            block->size = size;
+            block->used = true;
+            return &temp_memory[allocator.temp_index][allocator.temp_count + sizeof(block_header)];
+        }
+        allocator.temp_count += sizeof(block_header) + block->size;
     }
 
+    return NULL;  // No free space
+}
+
+void* temp_realloc(temp_allocator allocator, void* ptr, size_t new_size)
+{
     if (ptr == NULL) {
-        return temp_alloc(new_size);
+        return temp_alloc(allocator, new_size);
     }
 
-    if (new_size <= temp_count) {
-        return ptr;
+    block_header *header = (block_header *)((uint8_t *)ptr - sizeof(block_header));
+
+    if (new_size <= header->size) {
+        return ptr;  // No need to allocate a new block if it fits
     }
 
-    if (temp_count + new_size > TEMP_CAPACITY) {
-        return NULL;
+    void *new_ptr = temp_alloc(allocator, new_size);
+    if (new_ptr) {
+        memcpy(new_ptr, ptr, header->size);  // Copy old data
+        temp_free(ptr);
     }
-
-    void *new_ptr = &temp_memory[temp_count];
-    temp_count += new_size;
 
     return new_ptr;
 }
 
-char* temp_strdup(const char *cstr)
+char* temp_strdup(temp_allocator allocator, const char *cstr)
 {
     size_t n = strlen(cstr);
-    char *result = temp_alloc(n + 1);
-    memcpy(result, cstr, n);
-    result[n] = '\0';
+    char *result = temp_alloc(allocator, n + 1);
+    if (result) {
+        memcpy(result, cstr, n);
+        result[n] = '\0';
+    }
     return result;
 }
 
-void temp_reset(void)
+void temp_reset(temp_allocator allocator)
 {
-    temp_count = 0;
+    allocator.temp_count = 0;
 }
 
-size_t temp_save(void)
+size_t temp_save(temp_allocator allocator)
 {
-    return temp_count;
+    return allocator.temp_count;
 }
 
-void temp_rewind(size_t checkpoint)
+void temp_rewind(temp_allocator allocator, size_t checkpoint)
 {
-    temp_count = checkpoint;
+    allocator.temp_count = checkpoint;
 }
 
 void temp_free(void* ptr)
 {
     if (ptr == NULL) return;
 
-    if (ptr >= (void*)(&temp_memory[0]) && ptr < (void*)(&temp_memory[temp_count])) {
-        temp_count = (size_t)(ptr - (void*)temp_memory);
+    block_header *header = (block_header *)((uint8_t *)ptr - sizeof(block_header));
+    header->used = false;  // Mark as free
+}
+
+void print_memory(temp_allocator allocator, FILE* fp)
+{
+    size_t i = 0;
+    fprintf(fp, "Memory Dump:\n");
+    while (i < TEMP_CAPACITY) {
+        block_header *block = (block_header *)&temp_memory[allocator.temp_index][i];
+        fprintf(fp, "[%s | size: %lu]\n", block->used ? "USED" : "FREE", block->size);
+        i += sizeof(block_header) + block->size;
+        if (i >= TEMP_CAPACITY) break;
     }
 }

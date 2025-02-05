@@ -2,10 +2,11 @@
 #include "libs/hash_table.h"
 #include "libs/string.h"
 #include "libs/error.h"
+#include "libs/temp_alloc.h"
 
 struct Enviroment {
     hash_table* values;
-    size_t temp_index;
+    temp_allocator allocator;
 
     struct Enviroment* enclosing;
 };

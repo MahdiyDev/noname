@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stddef.h>
+#include "temp_alloc.h"
 
 typedef struct {
     char* key;
@@ -14,6 +15,8 @@ typedef struct {
     ht_item** items;
 
     size_t base_capacity;
+
+    temp_allocator temp;
 } hash_table;
 
 hash_table* ht_init();
