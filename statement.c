@@ -84,3 +84,61 @@ void free_stmt(struct Stmt* stmt)
 
     temp_free(stmt);
 }
+
+void print_statement(struct Stmt* stmt, int indent_level)
+{
+    if (!stmt) return;
+    
+    print_indent(indent_level);
+    
+    switch (stmt->type) {
+    case STMT_EXPRESSION:
+        printf("Expression Statement:\n");
+        print_expression(stmt->expression.expression, indent_level + 1);
+        break;
+    case STMT_PRINT:
+        printf("Print Statement:\n");
+        print_expression(stmt->print.expression, indent_level + 1);
+        break;
+    case STMT_VAR:
+        printf("Variable Declaration: %.*s\n", sv_fmt(stmt->variable.name.lexeme));
+        if (stmt->variable.initializer) {
+            print_indent(indent_level + 1);
+            printf("Initializer:\n");
+            print_expression(stmt->variable.initializer, indent_level + 2);
+        }
+        break;
+    case STMT_BLOCK:
+        printf("Block Statement:\n");
+        for (size_t i = 0; i < stmt->block.statements->count; i++) {
+            print_statement(stmt->block.statements->items[i], indent_level + 1);
+        }
+        break;
+    case STMT_IF:
+        printf("If Statement:\n");
+        print_indent(indent_level + 1);
+        printf("Condition:\n");
+        print_expression(stmt->if_stmt.condition, indent_level + 2);
+        print_indent(indent_level + 1);
+        printf("Then Branch:\n");
+        print_statement(stmt->if_stmt.then_branch, indent_level + 2);
+        if (stmt->if_stmt.else_branch) {
+            print_indent(indent_level + 1);
+            printf("Else Branch:\n");
+            print_statement(stmt->if_stmt.else_branch, indent_level + 2);
+        }
+        break;
+    case STMT_WHILE:
+        printf("While Statement:\n");
+        print_indent(indent_level + 1);
+        printf("Condition:\n");
+        print_expression(stmt->while_stmt.condition, indent_level + 2);
+        print_indent(indent_level + 1);
+        printf("Body:\n");
+        print_statement(stmt->while_stmt.body, indent_level + 2);
+        break;
+    default:
+        printf("Unknown Statement Type\n");
+        break;
+    }
+}

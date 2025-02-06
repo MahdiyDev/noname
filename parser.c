@@ -17,6 +17,7 @@ struct Parser {
 struct Error* parse_expression(struct Parser* parser, struct Expr** result);
 struct Error* parse_declaration(struct Parser* parser, struct Stmt** result);
 struct Error* parse_statement(struct Parser* parser, struct Stmt** result);
+struct Error* parse_varaible_declaration(struct Parser* parser, struct Stmt** result);
 
 struct Error* consume_and_expect(struct Parser* parser, const char* expexted_str)
 {
@@ -407,6 +408,82 @@ struct Error* parse_print_statement(struct Parser* parser, struct Stmt** result)
     return NULL;
 }
 
+struct Error* parse_for_statement(struct Parser* parser, struct Stmt** result)
+{
+    struct Error* error = NULL;
+    lex_get_token(parser->lexer, parser->token); // Consume 'for'
+
+    if (has_error(consume_and_expect(parser, "("))) {
+        return trace(error);
+    }
+
+    struct Stmt* initializer = NULL;
+    if (sv_equal_cstr(parser->token->lexeme, ";")) {
+        initializer = NULL;
+    } else if (sv_equal_cstr(parser->token->lexeme, "var")) {
+        if (has_error(parse_varaible_declaration(parser, &initializer))) {
+            return trace(error);
+        }
+    } else {
+        if (has_error(parse_expression_statement(parser, &initializer))) {
+            return trace(error);
+        }
+    }
+
+    struct Expr* condition = NULL;
+    if (!sv_equal_cstr(parser->token->lexeme, ";")) {
+        if (has_error(parse_expression(parser, &condition))) {
+            return trace(error);
+        }
+    }
+
+    if (has_error(consume_and_expect(parser, ";"))) {
+        return trace(error);
+    }
+
+    struct Expr* increment = NULL;
+    if (!sv_equal_cstr(parser->token->lexeme, ")")) {
+        if (has_error(parse_expression(parser, &increment))) {
+            return trace(error);
+        }
+    }
+
+    if (has_error(consume_and_expect(parser, ")"))) {
+        return trace(error);
+    }
+
+    struct Stmt* body = NULL;
+    if (has_error(parse_statement(parser, &body))) {
+        return trace(error);
+    }
+
+    if (increment != NULL) {
+        Stmts *statements = NULL;
+        da_init(statements);
+
+        da_append(statements, body);
+        da_append(statements, create_expression_stmt(parser->allocator, increment));
+
+        body = create_block_stmt(parser->allocator, statements);
+    }
+
+    if (condition == NULL) condition = create_literal_expr(parser->allocator, true);
+    body = create_while_stmt(parser->allocator, condition, body);
+
+    if (initializer != NULL) {
+        Stmts *statements = NULL;
+        da_init(statements);
+
+        da_append(statements, initializer);
+        da_append(statements, body);
+
+        body = create_block_stmt(parser->allocator, statements);
+    }
+
+    *result = body;
+    return NULL;
+}
+
 struct Error* parse_while_statement(struct Parser* parser, struct Stmt** result)
 {
     struct Error* error = NULL;
@@ -479,6 +556,7 @@ struct Error* parse_statement(struct Parser* parser, struct Stmt** result)
         return trace(error);
     }
 
+    if (sv_equal_cstr(parser->token->lexeme, "for")) return trace(parse_for_statement(parser, result));
     if (sv_equal_cstr(parser->token->lexeme, "if")) return trace(parse_if_statement(parser, result));
     if (sv_equal_cstr(parser->token->lexeme, "print")) return trace(parse_print_statement(parser, result));
     if (sv_equal_cstr(parser->token->lexeme, "while")) return trace(parse_while_statement(parser, result));

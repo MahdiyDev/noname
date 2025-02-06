@@ -1,8 +1,6 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include "libs/string.h"
 #include "libs/temp_alloc.h"
-#include "string.h"
 #include "lexer.h"
 #include "expression.h"
 
@@ -146,14 +144,49 @@ void free_expr(struct Expr* expr)
     temp_free(expr);
 }
 
-void print_expr(struct Expr* expr)
+void print_indent(int indent_level)
 {
-    string_builder* ast_sb = sb_init(NULL);
-    accept(ast_sb, expr);
+    for (int i = 0; i < indent_level; i++) {
+        printf("  ");
+    }
+}
 
-    string_view ast = sb_to_sv(ast_sb);
-
-    printf("AST: %.*s\n", sv_fmt(ast));
-
-    sb_free(ast_sb);
+void print_expression(struct Expr* expr, int indent_level)
+{
+    if (!expr) return;
+    print_indent(indent_level);
+    
+    switch (expr->type) {
+    case EXPR_BINARY:
+        printf("Binary Expression: %.*s\n", sv_fmt(expr->binary.operator.lexeme));
+        print_expression(expr->binary.left, indent_level + 1);
+        print_expression(expr->binary.right, indent_level + 1);
+        break;
+    case EXPR_UNARY:
+        printf("Unary Expression: %.*s\n", sv_fmt(expr->unary.operator.lexeme));
+        print_expression(expr->unary.right, indent_level + 1);
+        break;
+    case EXPR_GROUP:
+        printf("Grouping Expression:\n");
+        print_expression(expr->group.expression, indent_level + 1);
+        break;
+    case EXPR_LITERAL:
+        printf("Literal: %d\n", expr->literal.value);
+        break;
+    case EXPR_VAR:
+        printf("Variable: %.*s\n",sv_fmt(expr->variable.name.lexeme));
+        break;
+    case EXPR_ASSIGN:
+        printf("Assignment: %.*s\n", sv_fmt(expr->assign.name.lexeme));
+        print_expression(expr->assign.value, indent_level + 1);
+        break;
+    case EXPR_LOGICAL:
+        printf("Logical Expression: %.*s\n", sv_fmt(expr->logical.operator.lexeme));
+        print_expression(expr->logical.left, indent_level + 1);
+        print_expression(expr->logical.right, indent_level + 1);
+        break;
+    default:
+        printf("Unknown Expression\n");
+        break;
+    }
 }

@@ -60,5 +60,6 @@ struct Expr* create_variable_expr(temp_allocator allocator, lexer_token name);
 struct Expr* create_assign_expr(temp_allocator allocator, lexer_token name, struct Expr* value);
 struct Expr* create_logical_expr(temp_allocator allocator, struct Expr* left, lexer_token operator, struct Expr* right);
 
-void print_expr(struct Expr* expr);
+void print_indent(int indent_level);
+void print_expression(struct Expr* expr, int indent_level);
 void free_expr(struct Expr* expr);

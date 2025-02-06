@@ -37,13 +37,15 @@
 
 #define da_init(da) da_init_with_capacity(da, 1)
 
-#define da_free(da)                \
-    do {                           \
-        if ((da)->items != NULL) { \
-            DA_FREE((da)->items);  \
-        }                          \
-        DA_FREE(da);               \
-        da = NULL;                 \
+#define da_free(da)                    \
+    do {                               \
+        if ((da) != NULL) {            \
+            if ((da)->items != NULL) { \
+                DA_FREE((da)->items);  \
+            }                          \
+            DA_FREE(da);               \
+            da = NULL;                 \
+        }                              \
     } while (0)
 
 // Append an item to a dynamic array

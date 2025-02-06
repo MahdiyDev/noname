@@ -59,3 +59,4 @@ struct Stmt* create_if_stmt(temp_allocator allocator, struct Expr* condition, st
 struct Stmt* create_while_stmt(temp_allocator allocator, struct Expr* condition, struct Stmt* body);
 
 void free_stmt(struct Stmt* stmt);
+void print_statement(struct Stmt* stmt, int indent_level);
