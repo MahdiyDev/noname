@@ -4,48 +4,6 @@
 #include "lexer.h"
 #include "expression.h"
 
-// Helper function to create a string from an expression
-void accept(string_builder* sb, struct Expr* expr);
-
-string_view parenthesize(string_builder* sb, string_view name, struct Expr* exprs, int exprs_count)
-{
-    sb_add_cstr(sb, "(");
-    sb_add(sb, name);
-    for (int i = 0; i < exprs_count; i++) {
-        sb_add_cstr(sb, " ");
-        accept(sb, &exprs[i]);
-    }
-    sb_add_cstr(sb, ")");
-
-    return sb_to_sv(sb);
-}
-
-void accept(string_builder* sb, struct Expr* expr)
-{
-    switch (expr->type) {
-        case EXPR_BINARY:
-            parenthesize(sb, expr->binary.operator.lexeme, to_c_array(struct Expr, *expr->binary.left, *expr->binary.right), 2);
-            break;
-        case EXPR_UNARY:
-            parenthesize(sb, expr->unary.operator.lexeme, to_c_array(struct Expr, *expr->unary.right), 1);
-            break;
-        case EXPR_GROUP:
-            parenthesize(sb, sv_from_cstr("group"), to_c_array(struct Expr, *expr->group.expression), 1);
-            break;
-        case EXPR_LITERAL: {
-            if (!expr->literal.value) {
-                sb_add_cstr(sb, "nil");
-            } else {
-                sb_add(sb, sv_from_digit(expr->literal.value));
-            }
-            break;
-        }
-        default:
-            sb_add_cstr(sb, "Unknown Expression");
-            break;
-    }
-}
-
 // Factory functions for creating expressions
 struct Expr* create_binary_expr(temp_allocator allocator, struct Expr* left, lexer_token operator, struct Expr* right)
 {
@@ -66,7 +24,7 @@ struct Expr* create_unary_expr(temp_allocator allocator, lexer_token operator, s
     return expr;
 }
 
-struct Expr* create_literal_expr(temp_allocator allocator, int value)
+struct Expr* create_literal_expr(temp_allocator allocator, lexer_token_value value)
 {
     struct Expr* expr = temp_alloc(allocator, sizeof(struct Expr));
     expr->type = EXPR_LITERAL;
@@ -109,6 +67,16 @@ struct Expr* create_logical_expr(temp_allocator allocator, struct Expr* left, le
     return expr;
 }
 
+struct Expr* create_call_expr(temp_allocator allocator, struct Expr* calle, lexer_token paren, Exprs* arguments)
+{
+    struct Expr* expr = temp_alloc(allocator, sizeof(struct Expr));
+    expr->type = EXPR_CALL;
+    expr->call.calle = calle;
+    expr->call.paren = paren;
+    expr->call.arguments = arguments;
+    return expr;
+}
+
 lexer_token create_operator(const char* sign)
 {
     return (lexer_token){ .lexeme = sv_from_cstr(sign) };
@@ -135,6 +103,10 @@ void free_expr(struct Expr* expr)
     case EXPR_LOGICAL:
         free_expr(expr->logical.left);
         free_expr(expr->logical.right);
+        break;
+    case EXPR_CALL:
+        free_expr(expr->call.calle);
+        da_free(expr->call.arguments);
         break;
     case EXPR_VAR:
         break; // No dynamic memory in variable
@@ -171,7 +143,15 @@ void print_expression(struct Expr* expr, int indent_level)
         print_expression(expr->group.expression, indent_level + 1);
         break;
     case EXPR_LITERAL:
-        printf("Literal: %d\n", expr->literal.value);
+        printf("Literal: ");
+        switch (expr->literal.value.type) {
+        case VALUE_TYPE_INT:
+            printf("%d\n", expr->literal.value.int_value);
+            break;
+        case VALUE_TYPE_STRING:
+            printf("\"%.*s\"\n", sv_fmt(expr->literal.value.string_value));
+            break;
+        }
         break;
     case EXPR_VAR:
         printf("Variable: %.*s\n",sv_fmt(expr->variable.name.lexeme));
@@ -185,6 +165,12 @@ void print_expression(struct Expr* expr, int indent_level)
         print_expression(expr->logical.left, indent_level + 1);
         print_expression(expr->logical.right, indent_level + 1);
         break;
+    case EXPR_CALL:
+        printf("Call Expression: %.*s\n", sv_fmt(expr->call.paren.lexeme));
+        print_expression(expr->call.calle, indent_level + 1);
+        for (size_t i = 0; i < expr->call.arguments->count; i++) {
+            print_expression(expr->call.arguments->items[i], indent_level + 1);
+        }
     default:
         printf("Unknown Expression\n");
         break;

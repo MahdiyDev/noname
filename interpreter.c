@@ -1,4 +1,5 @@
 #include "interpreter.h"
+#include "lexer.h"
 #include "libs/string.h"
 #include "statement.h"
 #include "environment.h"
@@ -6,16 +7,22 @@
 
 #define UNREACHABLE() { fprintf(stderr, "%s:%d\n", __FILE__, __LINE__); abort();}
 
-struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, int* result);
+typedef struct {
+    size_t count;
+    size_t capacity;
+    lexer_token_value* items;
+} Arguments;
+
+struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result);
 struct Error* execute(struct Interpreter* intp, struct Stmt* stmt);
 
-struct Error* visit_literal_expr(struct Expr* expr, int* result)
+struct Error* visit_literal_expr(struct Expr* expr, lexer_token_value* result)
 {
     *result = expr->literal.value;
     return NULL;
 }
 
-struct Error* visit_group_expr(struct Interpreter* intp, struct Expr* expr, int* result)
+struct Error* visit_group_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
 {
     struct Error* error = NULL;
 
@@ -31,98 +38,113 @@ bool is_truthy(int value)
     return value == true;
 }
 
-struct Error* visit_unary_expr(struct Interpreter* intp, struct Expr* expr, int* result)
+struct Error* visit_unary_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
 {
     struct Error* error = NULL;
 
-    int right = 0;
+    lexer_token_value right = {0};
     if (has_error(evaluate(intp, expr->unary.right, &right))) {
         return trace(error);
     }
 
+    if (right.type != VALUE_TYPE_INT) {
+        return error("Can't do unary expression.");
+    }
+
     if (sv_equal_cstr(expr->unary.operator.lexeme, "-")) {
-        *result = -right;
+        result->int_value = -right.int_value;
         return NULL;
     }
     else if (sv_equal_cstr(expr->unary.operator.lexeme, "!")) {
         // TODO: change this to boolean value
-        *result = !is_truthy(right);
+        result->int_value = !is_truthy(right.int_value);
         return NULL;
     }
 
     UNREACHABLE();
 }
 
-struct Error* visit_binary_expr(struct Interpreter* intp, struct Expr* expr, int* result)
+struct Error* visit_binary_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
 {
     struct Error* error = NULL;
 
-    int left = 0;
-    if (has_error(evaluate(intp, expr->binary.left, &left))) {
+    lexer_token_value left_value = {0};
+    if (has_error(evaluate(intp, expr->binary.left, &left_value))) {
         return trace(error);
     }
 
-    int right = 0;
-    if (has_error(evaluate(intp, expr->binary.right, &right))) {
+    if (left_value.type != VALUE_TYPE_INT) {
+        return error("Can't do binnary expression.");
+    }
+
+    lexer_token_value right_value = {0};
+    if (has_error(evaluate(intp, expr->binary.right, &right_value))) {
         return trace(error);
     }
+
+    if (right_value.type != VALUE_TYPE_INT) {
+        return error("Can't do binnary expression.");
+    }
+
+    int left = left_value.int_value;
+    int right = right_value.int_value;
 
     if (sv_equal_cstr(expr->binary.operator.lexeme, "==")) {
-        *result = left == right;
+        result->int_value = left == right;
         return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "!=")) {
-        *result = left != right;
+        result->int_value = left != right;
         return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, ">=")) {
-        *result = left >= right;
+        result->int_value = left >= right;
         return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, ">")) {
-        *result = left > right;
+        result->int_value = left > right;
         return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "<=")) {
-        *result = left <= right;
+        result->int_value = left <= right;
         return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "<")) {
-        *result = left < right;
+        result->int_value = left < right;
         return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "-")) {
-        *result = left - right;
+        result->int_value = left - right;
         return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "+")) {
-        *result = left + right;
+        result->int_value = left + right;
         return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "/")) {
-        *result = left / right;
+        result->int_value = left / right;
         return NULL;
     }
     else if (sv_equal_cstr(expr->binary.operator.lexeme, "*")) {
-        *result = left * right;
+        result->int_value = left * right;
         return NULL;
     }
 
     UNREACHABLE();
 }
 
-struct Error* visit_variable_expr(struct Interpreter* intp, struct Expr* expr, int* result)
+struct Error* visit_variable_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
 {
     struct Error* error = NULL;
 
     return trace(env_get(intp->env, expr->variable.name, result));
 }
 
-struct Error* visit_assign_expr(struct Interpreter* intp, struct Expr* expr, int* result)
+struct Error* visit_assign_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
 {
     struct Error* error = NULL;
 
-    int value = 0;
+    lexer_token_value value = {0};
     if (has_error(evaluate(intp, expr->assign.value, &value))) {
         return trace(error);
     }
@@ -130,28 +152,32 @@ struct Error* visit_assign_expr(struct Interpreter* intp, struct Expr* expr, int
     return trace(env_assign(intp->env, expr->assign.name, value));
 }
 
-struct Error* visit_logical_expr(struct Interpreter* intp, struct Expr* expr, int* result)
+struct Error* visit_logical_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
 {
     struct Error* error = NULL;
 
-    int left = 0;
+    lexer_token_value left = {0};
     if (has_error(evaluate(intp, expr->logical.left, &left))) {
         return trace(error);
     }
-    
-    if (sv_equal_cstr(expr->binary.operator.lexeme, "or")) {
-        if (is_truthy(left)) {
+
+    if (left.type != VALUE_TYPE_INT) {
+        return error("Can't do logical expression.");
+    }
+
+    if (sv_equal_cstr(expr->logical.operator.lexeme, "or")) {
+        if (is_truthy(left.int_value)) {
             *result = left;
             return NULL;
         }
     } else {
-        if (!is_truthy(left)) {
+        if (!is_truthy(left.int_value)) {
             *result = left;
             return NULL;
         }
     }
 
-    int right = 0;
+    lexer_token_value right = {0};
     if (has_error(evaluate(intp, expr->logical.right, &right))) {
         return trace(error);
     }
@@ -160,7 +186,31 @@ struct Error* visit_logical_expr(struct Interpreter* intp, struct Expr* expr, in
     return NULL;
 }
 
-struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, int* result)
+struct Error* visit_call_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
+{
+    struct Error* error = NULL;
+
+    lexer_token_value calle = {0};
+    if (has_error(evaluate(intp, expr->call.calle, &calle))) {
+        return trace(error);
+    }
+
+    Arguments* arguments = NULL;
+    da_init(arguments);
+
+    for (int i = 0; i < expr->call.arguments->count; i++) {
+        lexer_token_value argument = {0};
+        if (has_error(evaluate(intp, expr->call.calle, &argument))) {
+            return trace(error);
+        }
+
+        da_append(arguments, argument);
+    }
+
+    //
+}
+
+struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
 {
     struct Error* error = NULL;
 
@@ -179,6 +229,8 @@ struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, int* result)
         return trace(visit_assign_expr(intp, expr, result));
     case EXPR_LOGICAL:
         return trace(visit_logical_expr(intp, expr, result));
+    case EXPR_CALL:
+        return trace(visit_call_expr(intp, expr, result));
     }
 
     UNREACHABLE();
@@ -188,7 +240,7 @@ struct Error* visit_expression_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
 
-    int value = 0;
+    lexer_token_value value = {0};
     return trace(evaluate(intp, stmt->expression.expression, &value));
 }
 
@@ -196,12 +248,20 @@ struct Error* visit_print_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
 
-    int value = 0;
+    lexer_token_value value = {0};
     if (has_error(evaluate(intp, stmt->print.expression, &value))) {
         return trace(error);
     }
 
-    printf("%d\n", value);
+    switch (value.type) {
+    case VALUE_TYPE_INT:
+        printf("%d\n", value.int_value);
+        break;
+    case VALUE_TYPE_STRING: 
+        printf("%.*s\n", sv_fmt(value.string_value));
+        break;
+    }
+
     return NULL;
 }
 
@@ -209,7 +269,7 @@ struct Error* visit_variable_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
 
-    int value = 0;
+    lexer_token_value value = {0};
     if (stmt->variable.initializer != NULL) {
         if (has_error(evaluate(intp, stmt->variable.initializer, &value))) {
             return trace(error);
@@ -251,12 +311,16 @@ struct Error* visit_if_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
 
-    int value = 0;
+    lexer_token_value value = {0};
     if (has_error(evaluate(intp, stmt->if_stmt.condition, &value))) {
         return trace(error);
     }
 
-    if (is_truthy(value)) {
+    if (value.type != VALUE_TYPE_INT) {
+        return error("Can't do if statement.");
+    }
+
+    if (is_truthy(value.int_value)) {
         if (has_error(execute(intp, stmt->if_stmt.then_branch))) {
             return trace(error);
         }
@@ -273,12 +337,12 @@ struct Error* visit_while_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
 
-    int value = 0;
+    lexer_token_value value = {0};
     if (has_error(evaluate(intp, stmt->while_stmt.condition, &value))) {
         return trace(error);
     }
 
-    while (is_truthy(value)) {
+    while (is_truthy(value.int_value)) {
         if (has_error(execute_block(intp, stmt->while_stmt.body->block.statements, env_init(intp->env)))) {
             return trace(error);
         }

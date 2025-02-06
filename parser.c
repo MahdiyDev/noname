@@ -50,8 +50,8 @@ struct Error* parse_primary(struct Parser* parser, struct Expr** result)
         return trace(error);
     }
 
-    if (parser->token->id == LEXER_INT) {
-        *result = create_literal_expr(parser->allocator, parser->token->int_value);
+    if (parser->token->id == LEXER_VALUE) {
+        *result = create_literal_expr(parser->allocator, parser->token->value);
         lex_get_token(parser->lexer, parser->token); // Advance to the next token
         return NULL;
     }
@@ -60,6 +60,11 @@ struct Error* parse_primary(struct Parser* parser, struct Expr** result)
         *result = create_variable_expr(parser->allocator, *parser->token);
         lex_get_token(parser->lexer, parser->token); // Advance to the next token
         return NULL;
+    }
+
+    if (sv_equal_cstr(parser->token->lexeme, "\"")) {
+        // TODO: support escaping
+        *result = create_variable_expr(parser->allocator, *parser->token);
     }
 
     if (parser->token->id == LEXER_PUNCT && sv_equal_cstr(parser->token->lexeme, "(")) {
@@ -78,6 +83,61 @@ struct Error* parse_primary(struct Parser* parser, struct Expr** result)
     }
 
     return error_f("at %s:%zu:%zu Unexpected token '%.*s'", lex_loc_fmt_ptr(parser->token), sv_fmt(parser->token->lexeme));
+}
+
+struct Error* parse_finish_call(struct Parser* parser, struct Expr** result)
+{
+    struct Error* error = NULL;
+
+    struct Expr *calle = *result;
+
+    Exprs* arguments = NULL;
+    da_init(arguments);
+
+    if (!sv_equal_cstr(parser->token->lexeme, ")")) {
+        do {
+            if (arguments->count >= 255) {
+                return error("Can't have more then 255 arguments.");
+            }
+
+            struct Expr* expression = NULL;
+            if (has_error(parse_expression(parser, &expression))) {
+                trace(error);
+            }
+
+            da_append(arguments, expression);
+        } while(sv_equal_cstr(parser->token->lexeme, ","));
+    }
+
+    if (has_error(consume_and_expect(parser, ")"))) {
+        return trace(error);
+    }
+
+    lexer_token paren = *parser->token;
+
+    *result = create_call_expr(parser->allocator, calle, paren, arguments);
+
+    return NULL;
+}
+
+struct Error* parse_call(struct Parser* parser, struct Expr** result)
+{
+    struct Error* error = NULL;
+    if (has_error(parse_primary(parser, result))) {
+        return trace(error);
+    }
+
+    while (true) {
+        if (sv_equal_cstr(parser->token->lexeme, "(")) {
+            if (has_error(parse_finish_call(parser, result))) {
+                return trace(error);
+            }       
+        } else {
+            break;
+        }
+    }
+
+    return NULL;
 }
 
 struct Error* parse_unary(struct Parser* parser, struct Expr** result)
@@ -101,7 +161,7 @@ struct Error* parse_unary(struct Parser* parser, struct Expr** result)
         return NULL;
     }
 
-    return trace(parse_primary(parser, result));
+    return trace(parse_call(parser, result));
 }
 
 struct Error* parse_factor(struct Parser* parser, struct Expr** result)
@@ -467,7 +527,12 @@ struct Error* parse_for_statement(struct Parser* parser, struct Stmt** result)
         body = create_block_stmt(parser->allocator, statements);
     }
 
-    if (condition == NULL) condition = create_literal_expr(parser->allocator, true);
+    if (condition == NULL) {
+        condition = create_literal_expr(
+            parser->allocator,
+            (lexer_token_value) { .type = VALUE_TYPE_INT, .int_value = 1 }
+        );
+    }
     body = create_while_stmt(parser->allocator, condition, body);
 
     if (initializer != NULL) {

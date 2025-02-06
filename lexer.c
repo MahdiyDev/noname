@@ -4,6 +4,7 @@
 #include <stdarg.h>
 
 #include "lexer.h"
+#include "libs/string.h"
 
 #define is_newline(c) (c == '\n' || c == '\r')
 
@@ -134,14 +135,31 @@ another_trim_round:
     if (sv_isdigit(l->source.data[l->current])) {
         size_t n = 0;
         while (l->current < l->source.count && sv_isdigit(l->source.data[l->current])) {
-            t->int_value = t->int_value*10 + l->source.data[l->current] - '0';
+            t->value.int_value = t->value.int_value*10 + l->source.data[l->current] - '0';
             n += 1;
             lex_advance(l);
         }
 
-        t->id = LEXER_INT;
-        t->lexeme = sv_from_parts(l->source.data + l->current, n);
+        t->id = LEXER_VALUE;
+        t->value.type = VALUE_TYPE_INT;
         
+        return true;
+    }
+
+    if (l->source.data[l->current] == '"') {
+        lex_advance(l); // consume first "
+
+        size_t n = 0;
+        while (l->current < l->source.count && l->source.data[l->current] != '"') {
+            n += 1;
+            lex_advance(l);
+        }
+
+        t->id = LEXER_VALUE;
+        t->value.type = VALUE_TYPE_STRING;
+        t->value.string_value = sv_from_parts(l->source.data + l->current - n, n);
+
+        lex_advance(l);
         return true;
     }
 
@@ -188,7 +206,7 @@ lexer lexer_create(const char *file_path, string_view content)
 
 const char *lexer_kind_names[LEXER_COUNT_KINDS] = {
     [LEXER_INVALID] = "INVALID",
-    [LEXER_INT]     = "INT",
+    [LEXER_VALUE]   = "VALUE",
     [LEXER_END]     = "END",
     [LEXER_SYMBOL]  = "SYMBOL",
     [LEXER_KEYWORD] = "KEYWORD",
@@ -209,7 +227,7 @@ void print_token_error(const lexer_token *t, const char* fmt, ...)
         t->loc.row,
         t->loc.col,
         lexer_kind_names[t->id],
-        t->int_value,
+        t->value.type,
         sv_fmt(t->lexeme));
 
     va_end(args);

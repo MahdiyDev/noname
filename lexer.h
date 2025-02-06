@@ -20,7 +20,7 @@ typedef struct {
 typedef enum {
     LEXER_INVALID,
     LEXER_END,
-    LEXER_INT,
+    LEXER_VALUE,
     LEXER_SYMBOL,
     LEXER_KEYWORD,
     LEXER_PUNCT,
@@ -28,13 +28,25 @@ typedef enum {
     LEXER_COUNT_KINDS,
 } lexer_token_kind;
 
+typedef enum {
+    VALUE_TYPE_INT,
+    VALUE_TYPE_STRING,
+} lexer_token_value_type;
+
+typedef struct {
+    lexer_token_value_type type;
+
+    union {
+        int int_value;
+        string_view string_value;
+    };
+} lexer_token_value;
+
 typedef struct {
     lexer_token_kind id;
     string_view lexeme;
 
-    union {
-        int int_value;
-    };
+    lexer_token_value value;
 
     location loc;
 } lexer_token;

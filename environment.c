@@ -3,8 +3,8 @@
 #include "libs/hash_table.h"
 #include "libs/temp_alloc.h"
 
-#define ht_insert_int(ht, key, value) ht_insert_generic_value(ht, key, int, value)
-#define ht_search_int(ht, key)        ht_search_generic_value(ht, key, int)
+#define ht_insert_lexer_token_value(ht, key, value) ht_insert_generic_value(ht, key, lexer_token_value, value)
+#define ht_search_lexer_token_value(ht, key)        ht_search_generic_value(ht, key, lexer_token_value)
 
 char* string_view_to_char(string_view s)
 {
@@ -33,22 +33,22 @@ void env_destroy(struct Enviroment* env)
     temp_free(env);
 }
 
-void env_define(struct Enviroment* env, string_view name, int value)
+void env_define(struct Enviroment* env, string_view name, lexer_token_value value)
 {
     char* n = string_view_to_char(name);
 
-    ht_insert_int(env->values, n, value);
+    ht_insert_lexer_token_value(env->values, n, value);
     // temp_free(n);
 }
 
-struct Error* env_get(struct Enviroment* env, lexer_token name, int* value)
+struct Error* env_get(struct Enviroment* env, lexer_token name, lexer_token_value* value)
 {
     struct Error* error = NULL;
 
     char* n = string_view_to_char(name.lexeme);
 
     if (ht_has(env->values, n)) {
-        *value = *ht_search_int(env->values, n);
+        *value = *ht_search_lexer_token_value(env->values, n);
         return_defer(error, NULL);
     }
 
@@ -61,14 +61,14 @@ defer:
     return error;
 }
 
-struct Error* env_assign(struct Enviroment* env, lexer_token name, int value)
+struct Error* env_assign(struct Enviroment* env, lexer_token name, lexer_token_value value)
 {    
     struct Error* error = NULL;
 
     char* n = string_view_to_char(name.lexeme);
 
     if (ht_has(env->values, n)) {
-        int* current_value = ht_search_int(env->values, n);
+        lexer_token_value* current_value = ht_search_lexer_token_value(env->values, n);
         *current_value = value; 
         return_defer(error, NULL);
     }

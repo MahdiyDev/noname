@@ -1,3 +1,4 @@
 for (var a = 0; a < 100; a = a + 1) {
+    print("a");
     print(a);
 }
