@@ -54,6 +54,16 @@ struct Stmt* create_while_stmt(temp_allocator allocator, struct Expr* condition,
     return stmt;
 }
 
+struct Stmt* create_function_stmt(temp_allocator allocator, lexer_token name, LexerTokens* params, Stmts* body)
+{
+    struct Stmt* stmt = temp_alloc(allocator, sizeof(struct Stmt));
+    stmt->type = STMT_FUNCTION;
+    stmt->function_stmt.name = name;
+    stmt->function_stmt.params = params;
+    stmt->function_stmt.body = body;
+    return stmt;
+}
+
 void free_stmt(struct Stmt* stmt)
 {
     if (!stmt) return;
@@ -79,6 +89,10 @@ void free_stmt(struct Stmt* stmt)
     case STMT_WHILE:
         free_expr(stmt->while_stmt.condition);
         free_stmt(stmt->while_stmt.body);
+        break;
+    case STMT_FUNCTION:
+        da_free(stmt->function_stmt.params);
+        da_free(stmt->function_stmt.body);
         break;
     }
 

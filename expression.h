@@ -35,7 +35,7 @@ struct Expr {
         } unary;
 
         struct {
-            lexer_token_value value;
+            struct lexer_token_value value;
         } literal;
 
         struct {
@@ -65,7 +65,7 @@ struct Expr {
     };
 };
 
-struct Expr* create_literal_expr(temp_allocator allocator, lexer_token_value value);
+struct Expr* create_literal_expr(temp_allocator allocator, struct lexer_token_value value);
 struct Expr* create_binary_expr(temp_allocator allocator, struct Expr* left, lexer_token operator, struct Expr* right);
 struct Expr* create_unary_expr(temp_allocator allocator, lexer_token operator, struct Expr* right);
 struct Expr* create_group_expr(temp_allocator allocator, struct Expr* expression);

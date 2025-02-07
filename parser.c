@@ -18,6 +18,7 @@ struct Error* parse_expression(struct Parser* parser, struct Expr** result);
 struct Error* parse_declaration(struct Parser* parser, struct Stmt** result);
 struct Error* parse_statement(struct Parser* parser, struct Stmt** result);
 struct Error* parse_varaible_declaration(struct Parser* parser, struct Stmt** result);
+struct Error* parse_block(struct Parser* parser, Stmts** result);
 
 struct Error* consume_and_expect(struct Parser* parser, const char* expexted_str)
 {
@@ -28,27 +29,9 @@ struct Error* consume_and_expect(struct Parser* parser, const char* expexted_str
     return NULL;
 }
 
-struct Error* ignore_newline(struct Parser* parser)
-{
-    while (parser->token->id == LEXER_NEWLINE) {
-        if (!lex_get_token(parser->lexer, parser->token) || parser->token->id == LEXER_END) {
-            break;
-        }
-    }
-
-    if (parser->token->id == LEXER_END) {
-        return error_f("at %s:%zu:%zu Unexpected end of input while parsing expression.", lex_loc_fmt_ptr(parser->token));
-    }
-    return NULL;
-}
-
 struct Error* parse_primary(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
-
-    if (has_error(ignore_newline(parser))) {
-        return trace(error);
-    }
 
     if (parser->token->id == LEXER_VALUE) {
         *result = create_literal_expr(parser->allocator, parser->token->value);
@@ -89,6 +72,10 @@ struct Error* parse_finish_call(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
 
+    if (has_error(consume_and_expect(parser, "("))) {
+        return trace(error);
+    }
+
     struct Expr *calle = *result;
 
     Exprs* arguments = NULL;
@@ -97,7 +84,7 @@ struct Error* parse_finish_call(struct Parser* parser, struct Expr** result)
     if (!sv_equal_cstr(parser->token->lexeme, ")")) {
         do {
             if (arguments->count >= 255) {
-                return error("Can't have more then 255 arguments.");
+                return error("Can't have more than 255 arguments.");
             }
 
             struct Expr* expression = NULL;
@@ -106,7 +93,13 @@ struct Error* parse_finish_call(struct Parser* parser, struct Expr** result)
             }
 
             da_append(arguments, expression);
-        } while(sv_equal_cstr(parser->token->lexeme, ","));
+
+            if (sv_equal_cstr(parser->token->lexeme, ",")) {
+                lex_get_token(parser->lexer, parser->token); // Consume ','
+            } else {
+                break;
+            }
+        } while(true);
     }
 
     if (has_error(consume_and_expect(parser, ")"))) {
@@ -123,6 +116,7 @@ struct Error* parse_finish_call(struct Parser* parser, struct Expr** result)
 struct Error* parse_call(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
+
     if (has_error(parse_primary(parser, result))) {
         return trace(error);
     }
@@ -131,7 +125,7 @@ struct Error* parse_call(struct Parser* parser, struct Expr** result)
         if (sv_equal_cstr(parser->token->lexeme, "(")) {
             if (has_error(parse_finish_call(parser, result))) {
                 return trace(error);
-            }       
+            }
         } else {
             break;
         }
@@ -143,10 +137,6 @@ struct Error* parse_call(struct Parser* parser, struct Expr** result)
 struct Error* parse_unary(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
-
-    if (has_error(ignore_newline(parser))) {
-        return trace(error);
-    }
 
     if (sv_in_carr(parser->token->lexeme, to_c_array(const char*, "!", "-"))) {
         lexer_token operator_tok = *parser->token;
@@ -167,11 +157,8 @@ struct Error* parse_unary(struct Parser* parser, struct Expr** result)
 struct Error* parse_factor(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
-    if (has_error(parse_unary(parser, result))) {
-        return trace(error);
-    }
 
-    if (has_error(ignore_newline(parser))) {
+    if (has_error(parse_unary(parser, result))) {
         return trace(error);
     }
 
@@ -196,11 +183,8 @@ struct Error* parse_factor(struct Parser* parser, struct Expr** result)
 struct Error* parse_term(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
-    if (has_error(parse_factor(parser, result))) {
-        return trace(error);
-    }
 
-    if (has_error(ignore_newline(parser))) {
+    if (has_error(parse_factor(parser, result))) {
         return trace(error);
     }
 
@@ -225,11 +209,8 @@ struct Error* parse_term(struct Parser* parser, struct Expr** result)
 struct Error* parse_comparison(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
-    if (has_error(parse_term(parser, result))) {
-        return trace(error);
-    }
 
-    if (has_error(ignore_newline(parser))) {
+    if (has_error(parse_term(parser, result))) {
         return trace(error);
     }
 
@@ -254,11 +235,8 @@ struct Error* parse_comparison(struct Parser* parser, struct Expr** result)
 struct Error* parse_equality(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
-    if (has_error(parse_comparison(parser, result))) {
-        return trace(error);
-    }
 
-    if (has_error(ignore_newline(parser))) {
+    if (has_error(parse_comparison(parser, result))) {
         return trace(error);
     }
 
@@ -341,10 +319,6 @@ struct Error* parse_assignment(struct Parser* parser, struct Expr** result)
         return trace(error);
     }
 
-    if (has_error(ignore_newline(parser))) {
-        return trace(error);
-    }
-
     if (sv_equal_cstr(parser->token->lexeme, "=")) {
         lexer_token equals = *parser->token;
         lex_get_token(parser->lexer, parser->token); // Consume equal '='
@@ -371,10 +345,6 @@ struct Error* parse_expression(struct Parser* parser, struct Expr** result)
 {
     struct Error* error = NULL;
 
-    if (has_error(ignore_newline(parser))) {
-        return trace(error);
-    }
-
     return trace(parse_assignment(parser, result));
 }
 
@@ -384,10 +354,6 @@ struct Error* parse_expression_statement(struct Parser* parser, struct Stmt** re
 
     struct Expr* expr = NULL;
     if (has_error(parse_expression(parser, &expr))) {
-        return trace(error);
-    }
-
-    if (has_error(ignore_newline(parser))) {
         return trace(error);
     }
 
@@ -403,6 +369,7 @@ struct Error* parse_expression_statement(struct Parser* parser, struct Stmt** re
 struct Error* parse_if_statement(struct Parser* parser, struct Stmt** result)
 {
     struct Error* error = NULL;
+
     lex_get_token(parser->lexer, parser->token); // Consume 'if'
 
     if (has_error(consume_and_expect(parser, "("))) {
@@ -440,6 +407,7 @@ struct Error* parse_if_statement(struct Parser* parser, struct Stmt** result)
 struct Error* parse_print_statement(struct Parser* parser, struct Stmt** result)
 {
     struct Error* error = NULL;
+
     lex_get_token(parser->lexer, parser->token); // Consume 'print'
 
     if (has_error(consume_and_expect(parser, "("))) {
@@ -455,10 +423,6 @@ struct Error* parse_print_statement(struct Parser* parser, struct Stmt** result)
         return trace(error);
     }
 
-    if (has_error(ignore_newline(parser))) {
-        return trace(error);
-    }
-
     if (has_error(consume_and_expect(parser, ";"))) {
         return trace(error);
     }
@@ -471,6 +435,7 @@ struct Error* parse_print_statement(struct Parser* parser, struct Stmt** result)
 struct Error* parse_for_statement(struct Parser* parser, struct Stmt** result)
 {
     struct Error* error = NULL;
+
     lex_get_token(parser->lexer, parser->token); // Consume 'for'
 
     if (has_error(consume_and_expect(parser, "("))) {
@@ -530,7 +495,7 @@ struct Error* parse_for_statement(struct Parser* parser, struct Stmt** result)
     if (condition == NULL) {
         condition = create_literal_expr(
             parser->allocator,
-            (lexer_token_value) { .type = VALUE_TYPE_INT, .int_value = 1 }
+            (struct lexer_token_value) { .type = VALUE_TYPE_INT, .int_value = 1 }
         );
     }
     body = create_while_stmt(parser->allocator, condition, body);
@@ -552,6 +517,7 @@ struct Error* parse_for_statement(struct Parser* parser, struct Stmt** result)
 struct Error* parse_while_statement(struct Parser* parser, struct Stmt** result)
 {
     struct Error* error = NULL;
+
     lex_get_token(parser->lexer, parser->token); // Consume 'while'
 
     if (has_error(consume_and_expect(parser, "("))) {
@@ -567,10 +533,6 @@ struct Error* parse_while_statement(struct Parser* parser, struct Stmt** result)
         return trace(error);
     }
 
-    if (has_error(ignore_newline(parser))) {
-        return trace(error);
-    }
-
     struct Stmt* body = NULL;
     if (has_error(parse_declaration(parser, &body))) {
         return trace(error);
@@ -581,16 +543,71 @@ struct Error* parse_while_statement(struct Parser* parser, struct Stmt** result)
     return NULL;
 }
 
+struct Error* parse_function_statement(struct Parser* parser, struct Stmt** result, char* kind)
+{
+    struct Error* error = NULL;
+
+    lex_get_token(parser->lexer, parser->token); // Consume 'fun'
+    
+    lexer_token name = *parser->token;
+    if (parser->token->id != LEXER_SYMBOL) {
+        return error_f("Expected %s name.", kind);
+    }
+    lex_get_token(parser->lexer, parser->token); // Consume 'identifier'
+
+    if (has_error(consume_and_expect(parser, "("))) {
+        return trace(error);
+    }
+
+    LexerTokens* parameters = NULL;
+    da_init(parameters);
+
+    if (!sv_equal_cstr(parser->token->lexeme, ")")) {
+        do {
+            if (parameters->count >= 255) {
+                da_free(parameters);
+                return error("Can't have more than 255 parameters.");
+            }
+
+            if (parser->token->id != LEXER_SYMBOL) {
+                da_free(parameters);
+                return error("Expected parameter name.");
+            }
+
+            lexer_token param = *parser->token;
+            da_append(parameters, param);
+
+            lex_get_token(parser->lexer, parser->token); // Consume 'identifier'
+
+            if (!sv_equal_cstr(parser->token->lexeme, ",")) {
+                break;
+            }
+
+            lex_get_token(parser->lexer, parser->token); // Consume ','
+        } while (true);
+    }
+
+    if (has_error(consume_and_expect(parser, ")"))) {
+        return trace(error);
+    }
+
+    Stmts* body = NULL;
+    if (has_error(parse_block(parser, &body))) {
+        da_free(parameters);
+        return trace(error);
+    }
+
+    *result = create_function_stmt(parser->allocator, name, parameters, body);
+
+    return NULL;
+}
+
 struct Error* parse_block(struct Parser* parser, Stmts** result)
 {
     struct Error* error = NULL;
 
     lex_get_token(parser->lexer, parser->token); // Consume '{'
     
-    if (has_error(ignore_newline(parser))) {
-        return trace(error);
-    }
-
     Stmts* statements = NULL;
     da_init(statements);
 
@@ -601,10 +618,6 @@ struct Error* parse_block(struct Parser* parser, Stmts** result)
         }
 
         da_append(statements, statement);
-
-        if (has_error(ignore_newline(parser))) {
-            return trace(error);
-        }
     }
 
     lex_get_token(parser->lexer, parser->token); // Consume '}'
@@ -616,11 +629,8 @@ struct Error* parse_block(struct Parser* parser, Stmts** result)
 struct Error* parse_statement(struct Parser* parser, struct Stmt** result)
 {
     struct Error* error = NULL;
-    
-    if (has_error(ignore_newline(parser))) {
-        return trace(error);
-    }
 
+    if (sv_equal_cstr(parser->token->lexeme, "fun")) return trace(parse_function_statement(parser, result, "function"));
     if (sv_equal_cstr(parser->token->lexeme, "for")) return trace(parse_for_statement(parser, result));
     if (sv_equal_cstr(parser->token->lexeme, "if")) return trace(parse_if_statement(parser, result));
     if (sv_equal_cstr(parser->token->lexeme, "print")) return trace(parse_print_statement(parser, result));
@@ -642,6 +652,7 @@ struct Error* parse_statement(struct Parser* parser, struct Stmt** result)
 struct Error* parse_varaible_declaration(struct Parser* parser, struct Stmt** result)
 {
     struct Error* error = NULL;
+
     lex_get_token(parser->lexer, parser->token); // Consume 'var'
 
     lexer_token name = *parser->token;
@@ -669,10 +680,6 @@ struct Error* parse_varaible_declaration(struct Parser* parser, struct Stmt** re
 struct Error* parse_declaration(struct Parser* parser, struct Stmt** result)
 {   
     struct Error* error = NULL;
-    
-    if (has_error(ignore_newline(parser))) {
-        return trace(error);
-    }
 
     if (sv_equal_cstr(parser->token->lexeme, "var")) return trace(parse_varaible_declaration(parser, result));
 
@@ -686,10 +693,6 @@ struct Error* parse(struct Parser* parser, Stmts* result)
     lex_get_token(parser->lexer, parser->token); // Get first token
 
     while (parser->token->id != LEXER_END) {
-        if (has_error(ignore_newline(parser))) {
-            return NULL;
-        }
-
         struct Stmt* stmt = NULL;
         if (has_error(parse_declaration(parser, &stmt))) {
             return trace(error);

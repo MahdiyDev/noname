@@ -1,0 +1,14 @@
+fun add(a, b, c) {
+    print(a + b + c);
+}
+
+fun print_hello(name) {
+    print("Hello:");
+    print(name);
+}
+
+add(1, 2, 3);
+
+print_hello("    Someone");
+
+add(25, 15, 5);

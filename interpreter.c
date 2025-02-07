@@ -1,28 +1,22 @@
-#include "interpreter.h"
+#include "function.h"
 #include "lexer.h"
 #include "libs/string.h"
-#include "statement.h"
+#include "interpreter.h"
 #include "environment.h"
 #include <string.h>
 
 #define UNREACHABLE() { fprintf(stderr, "%s:%d\n", __FILE__, __LINE__); abort();}
 
-typedef struct {
-    size_t count;
-    size_t capacity;
-    lexer_token_value* items;
-} Arguments;
-
-struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result);
+struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, struct lexer_token_value* result);
 struct Error* execute(struct Interpreter* intp, struct Stmt* stmt);
 
-struct Error* visit_literal_expr(struct Expr* expr, lexer_token_value* result)
+struct Error* visit_literal_expr(struct Expr* expr, struct lexer_token_value* result)
 {
     *result = expr->literal.value;
     return NULL;
 }
 
-struct Error* visit_group_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
+struct Error* visit_group_expr(struct Interpreter* intp, struct Expr* expr, struct lexer_token_value* result)
 {
     struct Error* error = NULL;
 
@@ -38,11 +32,11 @@ bool is_truthy(int value)
     return value == true;
 }
 
-struct Error* visit_unary_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
+struct Error* visit_unary_expr(struct Interpreter* intp, struct Expr* expr, struct lexer_token_value* result)
 {
     struct Error* error = NULL;
 
-    lexer_token_value right = {0};
+    struct lexer_token_value right = {0};
     if (has_error(evaluate(intp, expr->unary.right, &right))) {
         return trace(error);
     }
@@ -64,11 +58,11 @@ struct Error* visit_unary_expr(struct Interpreter* intp, struct Expr* expr, lexe
     UNREACHABLE();
 }
 
-struct Error* visit_binary_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
+struct Error* visit_binary_expr(struct Interpreter* intp, struct Expr* expr, struct lexer_token_value* result)
 {
     struct Error* error = NULL;
 
-    lexer_token_value left_value = {0};
+    struct lexer_token_value left_value = {0};
     if (has_error(evaluate(intp, expr->binary.left, &left_value))) {
         return trace(error);
     }
@@ -77,7 +71,7 @@ struct Error* visit_binary_expr(struct Interpreter* intp, struct Expr* expr, lex
         return error("Can't do binnary expression.");
     }
 
-    lexer_token_value right_value = {0};
+    struct lexer_token_value right_value = {0};
     if (has_error(evaluate(intp, expr->binary.right, &right_value))) {
         return trace(error);
     }
@@ -133,18 +127,18 @@ struct Error* visit_binary_expr(struct Interpreter* intp, struct Expr* expr, lex
     UNREACHABLE();
 }
 
-struct Error* visit_variable_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
+struct Error* visit_variable_expr(struct Interpreter* intp, struct Expr* expr, struct lexer_token_value* result)
 {
     struct Error* error = NULL;
 
     return trace(env_get(intp->env, expr->variable.name, result));
 }
 
-struct Error* visit_assign_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
+struct Error* visit_assign_expr(struct Interpreter* intp, struct Expr* expr, struct lexer_token_value* result)
 {
     struct Error* error = NULL;
 
-    lexer_token_value value = {0};
+    struct lexer_token_value value = {0};
     if (has_error(evaluate(intp, expr->assign.value, &value))) {
         return trace(error);
     }
@@ -152,11 +146,11 @@ struct Error* visit_assign_expr(struct Interpreter* intp, struct Expr* expr, lex
     return trace(env_assign(intp->env, expr->assign.name, value));
 }
 
-struct Error* visit_logical_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
+struct Error* visit_logical_expr(struct Interpreter* intp, struct Expr* expr, struct lexer_token_value* result)
 {
     struct Error* error = NULL;
 
-    lexer_token_value left = {0};
+    struct lexer_token_value left = {0};
     if (has_error(evaluate(intp, expr->logical.left, &left))) {
         return trace(error);
     }
@@ -177,7 +171,7 @@ struct Error* visit_logical_expr(struct Interpreter* intp, struct Expr* expr, le
         }
     }
 
-    lexer_token_value right = {0};
+    struct lexer_token_value right = {0};
     if (has_error(evaluate(intp, expr->logical.right, &right))) {
         return trace(error);
     }
@@ -186,11 +180,11 @@ struct Error* visit_logical_expr(struct Interpreter* intp, struct Expr* expr, le
     return NULL;
 }
 
-struct Error* visit_call_expr(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
+struct Error* visit_call_expr(struct Interpreter* intp, struct Expr* expr, struct lexer_token_value* result)
 {
     struct Error* error = NULL;
 
-    lexer_token_value calle = {0};
+    struct lexer_token_value calle = {0};
     if (has_error(evaluate(intp, expr->call.calle, &calle))) {
         return trace(error);
     }
@@ -199,18 +193,30 @@ struct Error* visit_call_expr(struct Interpreter* intp, struct Expr* expr, lexer
     da_init(arguments);
 
     for (int i = 0; i < expr->call.arguments->count; i++) {
-        lexer_token_value argument = {0};
-        if (has_error(evaluate(intp, expr->call.calle, &argument))) {
+        struct lexer_token_value argument = {0};
+        if (has_error(evaluate(intp, expr->call.arguments->items[i], &argument))) {
             return trace(error);
         }
 
         da_append(arguments, argument);
     }
 
-    //
+    if (calle.type != VALUE_TYPE_CALLABLE) {
+        return error("Can only call functions");
+    }
+
+    if (arguments->count != calle.callable_value.arity) {
+        return error_f("at %s:%zu:%zu Expected %d arguments but got %zu,", lex_loc_fmt(expr->call.paren), calle.callable_value.arity, arguments->count);
+    }
+
+    if (has_error(calle.callable_value.call(calle.callable_value, intp, arguments, result))) {
+        return trace(error);
+    }
+
+    return NULL;
 }
 
-struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, lexer_token_value* result)
+struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, struct lexer_token_value* result)
 {
     struct Error* error = NULL;
 
@@ -240,7 +246,7 @@ struct Error* visit_expression_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
 
-    lexer_token_value value = {0};
+    struct lexer_token_value value = {0};
     return trace(evaluate(intp, stmt->expression.expression, &value));
 }
 
@@ -248,7 +254,7 @@ struct Error* visit_print_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
 
-    lexer_token_value value = {0};
+    struct lexer_token_value value = {0};
     if (has_error(evaluate(intp, stmt->print.expression, &value))) {
         return trace(error);
     }
@@ -257,8 +263,14 @@ struct Error* visit_print_stmt(struct Interpreter* intp, struct Stmt* stmt)
     case VALUE_TYPE_INT:
         printf("%d\n", value.int_value);
         break;
+    case VALUE_TYPE_INT_LONG_LONG:
+        printf("%lld\n", value.int_long_long_value);
+        break;
     case VALUE_TYPE_STRING: 
         printf("%.*s\n", sv_fmt(value.string_value));
+        break;
+    case VALUE_TYPE_CALLABLE: 
+        printf("<native fun>\n");
         break;
     }
 
@@ -269,7 +281,7 @@ struct Error* visit_variable_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
 
-    lexer_token_value value = {0};
+    struct lexer_token_value value = {0};
     if (stmt->variable.initializer != NULL) {
         if (has_error(evaluate(intp, stmt->variable.initializer, &value))) {
             return trace(error);
@@ -311,7 +323,7 @@ struct Error* visit_if_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
 
-    lexer_token_value value = {0};
+    struct lexer_token_value value = {0};
     if (has_error(evaluate(intp, stmt->if_stmt.condition, &value))) {
         return trace(error);
     }
@@ -337,7 +349,7 @@ struct Error* visit_while_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
 
-    lexer_token_value value = {0};
+    struct lexer_token_value value = {0};
     if (has_error(evaluate(intp, stmt->while_stmt.condition, &value))) {
         return trace(error);
     }
@@ -352,6 +364,15 @@ struct Error* visit_while_stmt(struct Interpreter* intp, struct Stmt* stmt)
         }
     }
 
+    return NULL;
+}
+
+struct Error* visit_function_stmt(struct Interpreter* intp, struct Stmt* stmt)
+{
+    struct Error* error = NULL;
+    struct lexer_token_value function = create_function(stmt);
+
+    env_define(intp->env, stmt->function_stmt.name.lexeme, function);
     return NULL;
 }
 
@@ -372,13 +393,24 @@ struct Error* execute(struct Interpreter* intp, struct Stmt* stmt)
         return trace(visit_if_stmt(intp, stmt));
     case STMT_WHILE:
         return trace(visit_while_stmt(intp, stmt));
+    case STMT_FUNCTION:
+        return trace(visit_function_stmt(intp, stmt));
     }
 }
 
 struct Interpreter* interpreter_init()
 {
     struct Interpreter* intp = malloc(sizeof(struct Interpreter));
-    intp->env = env_init(NULL);
+    
+    intp->global_env = env_init(NULL);
+    intp->env = intp->global_env;
+
+    struct lexer_token_value clock;
+    clock.callable_value.arity = 0;
+    clock.callable_value.call = native_clock_fun;
+
+    env_define(intp->global_env, sv_from_cstr("clock"), clock);
+
     return intp;
 }
 

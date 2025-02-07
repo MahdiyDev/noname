@@ -68,7 +68,8 @@ void lex_advance_until_prefix(lexer *l, const char *prefix)
 
 void lex_trim_left(lexer *l)
 {
-    while (l->current < l->source.count && lex_is_space(l->source.data[l->current])) {
+    while (l->current < l->source.count &&
+            (lex_is_space(l->source.data[l->current]) || is_newline(l->source.data[l->current]))) {
         lex_advance(l);
     }
 }
@@ -114,10 +115,9 @@ another_trim_round:
         return false;
     }
 
-    if (is_newline(current_str.data[0])) {
-        t->id = LEXER_NEWLINE;
+    if (is_newline(l->source.data[l->current])) {
         lex_advance(l);
-        return true;
+        goto another_trim_round;
     }
 
     // Puncts
@@ -142,6 +142,7 @@ another_trim_round:
 
         t->id = LEXER_VALUE;
         t->value.type = VALUE_TYPE_INT;
+        t->lexeme = sv_from_parts(l->source.data + l->current - n, n);
         
         return true;
     }

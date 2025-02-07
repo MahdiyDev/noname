@@ -24,7 +24,7 @@ struct Expr* create_unary_expr(temp_allocator allocator, lexer_token operator, s
     return expr;
 }
 
-struct Expr* create_literal_expr(temp_allocator allocator, lexer_token_value value)
+struct Expr* create_literal_expr(temp_allocator allocator, struct lexer_token_value value)
 {
     struct Expr* expr = temp_alloc(allocator, sizeof(struct Expr));
     expr->type = EXPR_LITERAL;
@@ -148,8 +148,14 @@ void print_expression(struct Expr* expr, int indent_level)
         case VALUE_TYPE_INT:
             printf("%d\n", expr->literal.value.int_value);
             break;
+        case VALUE_TYPE_INT_LONG_LONG:
+            printf("%lld\n", expr->literal.value.int_long_long_value);
+            break;
         case VALUE_TYPE_STRING:
             printf("\"%.*s\"\n", sv_fmt(expr->literal.value.string_value));
+            break;
+        case VALUE_TYPE_CALLABLE:
+            printf("fun (%.*s)\n", sv_fmt(expr->call.paren.lexeme));
             break;
         }
         break;
