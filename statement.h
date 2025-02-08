@@ -16,6 +16,7 @@ typedef enum {
     STMT_IF,
     STMT_WHILE,
     STMT_FUNCTION,
+    STMT_RETURN,
 } StmtType;
 
 struct Stmt {
@@ -55,6 +56,11 @@ struct Stmt {
             LexerTokens* params;
             Stmts* body;
         } function_stmt;
+
+        struct {
+            lexer_token keyword;
+            struct Expr* value;
+        } return_stmt;
     };
 };
 
@@ -65,6 +71,7 @@ struct Stmt* create_block_stmt(temp_allocator allocator, Stmts* statements);
 struct Stmt* create_if_stmt(temp_allocator allocator, struct Expr* condition, struct Stmt* then_branch, struct Stmt* else_branch);
 struct Stmt* create_while_stmt(temp_allocator allocator, struct Expr* condition, struct Stmt* body);
 struct Stmt* create_function_stmt(temp_allocator allocator, lexer_token name, LexerTokens* params, Stmts* body);
+struct Stmt* create_return_stmt(temp_allocator allocator, lexer_token keyword, struct Expr* value);
 
 void free_stmt(struct Stmt* stmt);
 void print_statement(struct Stmt* stmt, int indent_level);

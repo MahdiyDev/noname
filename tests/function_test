@@ -8,7 +8,19 @@ fun print_hello(name) {
 }
 
 add(1, 2, 3);
+add(25, 15, 5);
 
 print_hello("    Someone");
 
-add(25, 15, 5);
+fun fib(n) {
+    if (n <= 1) return n;
+    return fib(n - 2) + fib(n - 1);
+}
+
+for (var i = 0; i < 20; i = i + 1) {
+    print(fib(i));
+}
+
+print("");
+print("Clock:");
+print(clock()); // build in function

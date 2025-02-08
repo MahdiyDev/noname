@@ -214,10 +214,11 @@ struct Error* parse_comparison(struct Parser* parser, struct Expr** result)
         return trace(error);
     }
 
-    while (sv_in_carr(parser->token->lexeme, to_c_array(const char*, ">", ">=", "<", "<="))) {
+    while (sv_in_carr(parser->token->lexeme, to_c_array(const char*, ">=", ">", "<=", "<"))) {
         lexer_token operator_tok = *parser->token; // Save the current operator
 
         if (!lex_get_token(parser->lexer, parser->token)) {
+            printf("%.*s\n", sv_fmt(parser->token->lexeme));
             return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(parser->token), sv_fmt(operator_tok.lexeme));
         }
 
@@ -602,6 +603,28 @@ struct Error* parse_function_statement(struct Parser* parser, struct Stmt** resu
     return NULL;
 }
 
+struct Error* parse_return_statement(struct Parser* parser, struct Stmt** result)
+{
+    struct Error* error = NULL;
+
+    lexer_token keyword = *parser->token;
+    lex_get_token(parser->lexer, parser->token); // Consume 'return'
+
+    struct Expr* value = NULL;
+    if (!sv_equal_cstr(parser->token->lexeme, ";")) {
+        if (has_error(parse_expression(parser, &value))) {
+            return trace(error);
+        }
+    }
+
+    if (has_error(consume_and_expect(parser, ";"))) {
+        return trace(error);
+    }
+
+    *result = create_return_stmt(parser->allocator, keyword, value);
+    return NULL;
+}
+
 struct Error* parse_block(struct Parser* parser, Stmts** result)
 {
     struct Error* error = NULL;
@@ -631,6 +654,7 @@ struct Error* parse_statement(struct Parser* parser, struct Stmt** result)
     struct Error* error = NULL;
 
     if (sv_equal_cstr(parser->token->lexeme, "fun")) return trace(parse_function_statement(parser, result, "function"));
+    if (sv_equal_cstr(parser->token->lexeme, "return")) return trace(parse_return_statement(parser, result));
     if (sv_equal_cstr(parser->token->lexeme, "for")) return trace(parse_for_statement(parser, result));
     if (sv_equal_cstr(parser->token->lexeme, "if")) return trace(parse_if_statement(parser, result));
     if (sv_equal_cstr(parser->token->lexeme, "print")) return trace(parse_print_statement(parser, result));
@@ -703,7 +727,12 @@ struct Error* parse(struct Parser* parser, Stmts* result)
     return NULL;
 }
 
-const char* puncts[] = { "(", ")", "{", "}", ",", ".", "-", "+", ";", "*" };
+const char* puncts[] = {
+    "(", ")", "{", "}", 
+    ",", ".", ";",
+    "-", "+", "*", "/",
+    ">=", ">", "<=", "<", // Order is matter
+};
 
 const char *sl_comments[] = {
     "//",

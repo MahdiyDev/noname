@@ -1,6 +1,7 @@
 #include "function.h"
 #include "interpreter.h"
 #include "environment.h"
+#include "lexer.h"
 #include <sys/time.h>
 
 long long current_time_millis()
@@ -29,6 +30,12 @@ struct Error* callable_function(struct callable_value value, struct Interpreter*
     }
 
     if (has_error(execute_block(intp, value.declaration->function_stmt.body, env))) {
+        if (error->type == ERROR_RETURN) {
+            // TODO: change to something else
+            *result = *(struct lexer_token_value*)(error->message);
+            env_destroy(env);
+            return NULL;
+        }
         return trace(error);
     }
 

@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #define TEMP_CAPACITY   (1024 * 1024)   // 1MB
-#define TEMP_INIT_COUNT (10)            // 10MB
+#define TEMP_INIT_COUNT (100)           // 100MB
 
 static uint8_t temp_memory[TEMP_INIT_COUNT][TEMP_CAPACITY] = {0};
 static bool temp_used[TEMP_INIT_COUNT] = {0}; 

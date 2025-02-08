@@ -64,6 +64,15 @@ struct Stmt* create_function_stmt(temp_allocator allocator, lexer_token name, Le
     return stmt;
 }
 
+struct Stmt* create_return_stmt(temp_allocator allocator, lexer_token keyword, struct Expr* value)
+{
+    struct Stmt* stmt = temp_alloc(allocator, sizeof(struct Stmt));
+    stmt->type = STMT_RETURN;
+    stmt->return_stmt.keyword = keyword;
+    stmt->return_stmt.value = value;
+    return stmt;
+}
+
 void free_stmt(struct Stmt* stmt)
 {
     if (!stmt) return;
@@ -93,6 +102,9 @@ void free_stmt(struct Stmt* stmt)
     case STMT_FUNCTION:
         da_free(stmt->function_stmt.params);
         da_free(stmt->function_stmt.body);
+        break;
+    case STMT_RETURN:
+        free_expr(stmt->return_stmt.value);
         break;
     }
 

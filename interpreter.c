@@ -1,5 +1,7 @@
 #include "function.h"
 #include "lexer.h"
+#include "libs/error.h"
+#include "libs/hash_table.h"
 #include "libs/string.h"
 #include "interpreter.h"
 #include "environment.h"
@@ -376,6 +378,26 @@ struct Error* visit_function_stmt(struct Interpreter* intp, struct Stmt* stmt)
     return NULL;
 }
 
+struct Error* visit_return_stmt(struct Interpreter* intp, struct Stmt* stmt)
+{
+    struct Error* error = NULL;
+
+    struct lexer_token_value value = {0};
+    if (stmt->return_stmt.value != NULL) {
+        if (has_error(evaluate(intp, stmt->return_stmt.value, &value))) {
+            return trace(error);
+        }
+    }
+
+    // TODO: change to something else
+    char return_value[sizeof(struct lexer_token_value)];
+    ht_to_char(return_value, &value, sizeof(value));
+
+    error = error_type(ERROR_RETURN, return_value);
+
+    return error;
+}
+
 struct Error* execute(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
@@ -395,6 +417,8 @@ struct Error* execute(struct Interpreter* intp, struct Stmt* stmt)
         return trace(visit_while_stmt(intp, stmt));
     case STMT_FUNCTION:
         return trace(visit_function_stmt(intp, stmt));
+    case STMT_RETURN:
+        return trace(visit_return_stmt(intp, stmt));
     }
 }
 
@@ -406,6 +430,7 @@ struct Interpreter* interpreter_init()
     intp->env = intp->global_env;
 
     struct lexer_token_value clock;
+    clock.type = VALUE_TYPE_CALLABLE;
     clock.callable_value.arity = 0;
     clock.callable_value.call = native_clock_fun;
 

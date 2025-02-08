@@ -2,6 +2,10 @@
 
 #include "statement.h"
 
+typedef enum {
+    ERROR_RETURN,
+} ErrorType;
+
 struct Interpreter {
     struct Enviroment* global_env;
     struct Enviroment* env;
