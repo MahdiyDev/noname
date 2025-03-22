@@ -3,44 +3,56 @@ CFLAGS=-O0 -g
 # CFLAGS=-O2
 LIBS=-lm
 
-noname.out: parser.o lexer.o expression.o \
-			statement.o interpreter.o environment.o function.o \
-			libs/temp_alloc.o libs/string.o libs/hash_table.o
+noname.out: parser.o lexer.o expression.o interpreter.o   \
+			environment.o function.o statement.o noname.o \
+			hash_table.o temp_alloc.o string.o
 	$(CC) $^ -o $@ $(LIBS)
 
-parser.o: parser.c libs/error.h
+parser.o: parser.c libs/dynamic_array.h libs/error.h libs/string.h \
+ expression.h lexer.h libs/temp_alloc.h parser.h statement.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-lexer.o: lexer.c lexer.h
+lexer.o: lexer.c lexer.h libs/string.h libs/dynamic_array.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-expression.o: expression.c expression.h
+expression.o: expression.c libs/string.h libs/dynamic_array.h \
+ libs/temp_alloc.h lexer.h expression.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-statement.o: statement.c statement.h
+interpreter.o: interpreter.c function.h lexer.h libs/string.h \
+ libs/dynamic_array.h libs/error.h interpreter.h statement.h expression.h \
+ libs/temp_alloc.h environment.h libs/hash_table.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-interpreter.o: interpreter.c interpreter.h
+environment.o: environment.c environment.h lexer.h libs/string.h \
+ libs/dynamic_array.h libs/hash_table.h libs/temp_alloc.h libs/error.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-environment.o: environment.c environment.h
+function.o: function.c function.h lexer.h libs/string.h \
+ libs/dynamic_array.h interpreter.h statement.h expression.h \
+ libs/temp_alloc.h environment.h libs/hash_table.h libs/error.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-temp_alloc.o: temp_alloc.c temp_alloc.h
+statement.o: statement.c libs/temp_alloc.h statement.h expression.h \
+ lexer.h libs/string.h libs/dynamic_array.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-function.o: function.c function.h
+noname.o: noname.c libs/error.h interpreter.h statement.h expression.h \
+ lexer.h libs/string.h libs/dynamic_array.h libs/temp_alloc.h parser.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 ##### BUILDING LIBS #####
-libs/string.o: libs/string.c libs/string.h
+
+hash_table.o: libs/hash_table.c libs/prime.h libs/hash_table.h \
+ libs/temp_alloc.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-libs/hash_table.o: libs/hash_table.c libs/hash_table.h
+temp_alloc.o: libs/temp_alloc.c libs/temp_alloc.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-libs/temp_alloc.o: libs/temp_alloc.c libs/temp_alloc.h
+string.o: libs/string.c libs/string.h libs/dynamic_array.h
 	$(CC) $(CFLAGS) -c $< -o $@
+
 ### BUILDING LIBS END ###
 
 build_dir:

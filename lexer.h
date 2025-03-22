@@ -45,6 +45,7 @@ struct callable_value {
     int arity;
     struct Error* (*call)(struct callable_value value, struct Interpreter* intp, Arguments* args, struct lexer_token_value* result);
     struct Stmt* declaration;
+    struct Enviroment* closure;
 };
 
 struct lexer_token_value {

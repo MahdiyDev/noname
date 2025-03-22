@@ -10,14 +10,6 @@ struct Stmt* create_expression_stmt(temp_allocator allocator, struct Expr* expre
     return stmt;
 }
 
-struct Stmt* create_print_stmt(temp_allocator allocator, struct Expr* expression)
-{
-    struct Stmt* stmt = temp_alloc(allocator, sizeof(struct Stmt));
-    stmt->type = STMT_PRINT;
-    stmt->print.expression = expression;
-    return stmt;
-}
-
 struct Stmt* create_variable_stmt(temp_allocator allocator, lexer_token name, struct Expr* initializer)
 {
     struct Stmt* stmt = temp_alloc(allocator, sizeof(struct Stmt));
@@ -81,9 +73,6 @@ void free_stmt(struct Stmt* stmt)
     case STMT_EXPRESSION:
         free_expr(stmt->expression.expression);
         break;
-    case STMT_PRINT:
-        free_expr(stmt->print.expression);
-        break;
     case STMT_VAR:
         free_expr(stmt->variable.initializer);
         break;
@@ -122,10 +111,6 @@ void print_statement(struct Stmt* stmt, int indent_level)
         printf("Expression Statement:\n");
         print_expression(stmt->expression.expression, indent_level + 1);
         break;
-    case STMT_PRINT:
-        printf("Print Statement:\n");
-        print_expression(stmt->print.expression, indent_level + 1);
-        break;
     case STMT_VAR:
         printf("Variable Declaration: %.*s\n", sv_fmt(stmt->variable.name.lexeme));
         if (stmt->variable.initializer) {
@@ -163,8 +148,26 @@ void print_statement(struct Stmt* stmt, int indent_level)
         printf("Body:\n");
         print_statement(stmt->while_stmt.body, indent_level + 2);
         break;
+    case STMT_FUNCTION:
+        printf("Function Statement: %.*s\n", sv_fmt(stmt->function_stmt.name.lexeme));
+        print_indent(indent_level + 1);
+        printf("Parameters: ");
+        for (int i = 0; i < stmt->function_stmt.params->count; i++) {
+            printf("(%d): %.*s ", i, sv_fmt(stmt->function_stmt.params->items[i].lexeme));
+        }
+        printf("\n");
+        print_indent(indent_level + 1);
+        printf("Body:\n");
+        for (int i = 0; i < stmt->function_stmt.body->count; i++) {
+            print_statement(stmt->function_stmt.body->items[i], indent_level + 2);
+        }
+        break;
+    case STMT_RETURN:
+        printf("Return Statement\n");
+        print_expression(stmt->return_stmt.value, indent_level + 2);
+        break;
     default:
-        printf("Unknown Statement Type\n");
+        printf("Unknown Statement Type: %d\n", stmt->type);
         break;
     }
 }

@@ -3,6 +3,7 @@
 #include "dynamic_array.h"
 #include <ctype.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 typedef struct {
     char* items;
@@ -67,3 +68,4 @@ void sb_clear(string_builder* sb);
 
 // UTILS
 bool sb_read_file(string_builder* sb, const char* file_path);
+bool sb_read_file_from_fp(string_builder* sb, FILE* fp);

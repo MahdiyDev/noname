@@ -5,11 +5,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define TEMP_CAPACITY   (1024 * 1024)   // 1MB
-#define TEMP_INIT_COUNT (100)           // 100MB
+#define TEMP_CAPACITY   (1024 * 128)   // 1MB
+#define TEMP_INIT_COUNT (100)          // 10MB
 
 static uint8_t temp_memory[TEMP_INIT_COUNT][TEMP_CAPACITY] = {0};
-static bool temp_used[TEMP_INIT_COUNT] = {0}; 
+static bool temp_used[TEMP_INIT_COUNT] = {0};
 
 typedef struct {
     size_t size;
@@ -24,7 +24,7 @@ temp_allocator temp_init()
             return (temp_allocator) { i, 0 };
         }
     }
-
+    
     fprintf(stderr, "Cannot allocate memory.\n");
     exit(EXIT_FAILURE);
 }

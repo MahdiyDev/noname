@@ -1,16 +1,15 @@
 #include "function.h"
 #include "lexer.h"
 #include "libs/error.h"
-#include "libs/hash_table.h"
 #include "libs/string.h"
 #include "interpreter.h"
 #include "environment.h"
+#include <stdlib.h>
 #include <string.h>
 
 #define UNREACHABLE() { fprintf(stderr, "%s:%d\n", __FILE__, __LINE__); abort();}
 
-struct Error* evaluate(struct Interpreter* intp, struct Expr* expr, struct lexer_token_value* result);
-struct Error* execute(struct Interpreter* intp, struct Stmt* stmt);
+struct Error* execute(struct Interpreter* intp, struct Stmt* stmt, struct lexer_token_value* return_value);
 
 struct Error* visit_literal_expr(struct Expr* expr, struct lexer_token_value* result)
 {
@@ -133,6 +132,8 @@ struct Error* visit_variable_expr(struct Interpreter* intp, struct Expr* expr, s
 {
     struct Error* error = NULL;
 
+    // printf("(get) env: %p name: %.*s\n", intp->env, sv_fmt(expr->variable.name.lexeme));
+
     return trace(env_get(intp->env, expr->variable.name, result));
 }
 
@@ -252,33 +253,6 @@ struct Error* visit_expression_stmt(struct Interpreter* intp, struct Stmt* stmt)
     return trace(evaluate(intp, stmt->expression.expression, &value));
 }
 
-struct Error* visit_print_stmt(struct Interpreter* intp, struct Stmt* stmt)
-{
-    struct Error* error = NULL;
-
-    struct lexer_token_value value = {0};
-    if (has_error(evaluate(intp, stmt->print.expression, &value))) {
-        return trace(error);
-    }
-
-    switch (value.type) {
-    case VALUE_TYPE_INT:
-        printf("%d\n", value.int_value);
-        break;
-    case VALUE_TYPE_INT_LONG_LONG:
-        printf("%lld\n", value.int_long_long_value);
-        break;
-    case VALUE_TYPE_STRING: 
-        printf("%.*s\n", sv_fmt(value.string_value));
-        break;
-    case VALUE_TYPE_CALLABLE: 
-        printf("<native fun>\n");
-        break;
-    }
-
-    return NULL;
-}
-
 struct Error* visit_variable_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
@@ -294,7 +268,7 @@ struct Error* visit_variable_stmt(struct Interpreter* intp, struct Stmt* stmt)
     return NULL;
 }
 
-struct Error* execute_block(struct Interpreter* intp, Stmts* stmts, struct Enviroment* env)
+struct Error* execute_block(struct Interpreter* intp, Stmts* stmts, struct Enviroment* env, struct lexer_token_value* return_value)
 {
     struct Error* error = NULL;
 
@@ -303,25 +277,32 @@ struct Error* execute_block(struct Interpreter* intp, Stmts* stmts, struct Envir
     for (size_t i = 0; i < stmts->count; i++) {
         intp->env = env;
 
-        if (has_error(execute(intp, stmts->items[i]))) {
+        if (has_error(execute(intp, stmts->items[i], return_value))) {
             intp->env = prev_env; // Restore env just in case
             return trace(error);
+        }
+        
+        if (return_value != NULL) {
+            // printf("(return) intp->env %p\n", intp->env);
+            // printf("(return) prev_env %p\n", prev_env);
+            break;
         }
     }
 
     env_destroy(env);
     intp->env = prev_env; // Restore env
+    
     return NULL;
 }
 
-struct Error* visit_block_stmt(struct Interpreter* intp, struct Stmt* stmt)
+struct Error* visit_block_stmt(struct Interpreter* intp, struct Stmt* stmt, struct lexer_token_value* return_value)
 {
     struct Error* error = NULL;
 
-    return trace(execute_block(intp, stmt->block.statements, env_init(intp->env)));
+    return trace(execute_block(intp, stmt->block.statements, env_init(intp->env), return_value));
 }
 
-struct Error* visit_if_stmt(struct Interpreter* intp, struct Stmt* stmt)
+struct Error* visit_if_stmt(struct Interpreter* intp, struct Stmt* stmt, struct lexer_token_value* return_value)
 {
     struct Error* error = NULL;
 
@@ -329,17 +310,17 @@ struct Error* visit_if_stmt(struct Interpreter* intp, struct Stmt* stmt)
     if (has_error(evaluate(intp, stmt->if_stmt.condition, &value))) {
         return trace(error);
     }
-
+    
     if (value.type != VALUE_TYPE_INT) {
         return error("Can't do if statement.");
     }
 
     if (is_truthy(value.int_value)) {
-        if (has_error(execute(intp, stmt->if_stmt.then_branch))) {
+        if (has_error(execute(intp, stmt->if_stmt.then_branch, return_value))) {
             return trace(error);
         }
     } else if (stmt->if_stmt.else_branch != NULL) {
-        if (has_error(execute(intp, stmt->if_stmt.else_branch))) {
+        if (has_error(execute(intp, stmt->if_stmt.else_branch, return_value))) {
             return trace(error);
         }
     }
@@ -347,7 +328,7 @@ struct Error* visit_if_stmt(struct Interpreter* intp, struct Stmt* stmt)
     return NULL;
 }
 
-struct Error* visit_while_stmt(struct Interpreter* intp, struct Stmt* stmt)
+struct Error* visit_while_stmt(struct Interpreter* intp, struct Stmt* stmt, struct lexer_token_value* return_value)
 {
     struct Error* error = NULL;
 
@@ -357,7 +338,7 @@ struct Error* visit_while_stmt(struct Interpreter* intp, struct Stmt* stmt)
     }
 
     while (is_truthy(value.int_value)) {
-        if (has_error(execute_block(intp, stmt->while_stmt.body->block.statements, env_init(intp->env)))) {
+        if (has_error(execute_block(intp, stmt->while_stmt.body->block.statements, env_init(intp->env), return_value))) {
             return trace(error);
         }
 
@@ -372,53 +353,49 @@ struct Error* visit_while_stmt(struct Interpreter* intp, struct Stmt* stmt)
 struct Error* visit_function_stmt(struct Interpreter* intp, struct Stmt* stmt)
 {
     struct Error* error = NULL;
-    struct lexer_token_value function = create_function(stmt);
-
+    struct lexer_token_value function = create_function(stmt, intp->env);
     env_define(intp->env, stmt->function_stmt.name.lexeme, function);
+    // printf("(define) env: %p name: %.*s\n", intp->env, sv_fmt(stmt->function_stmt.name.lexeme));
     return NULL;
 }
 
-struct Error* visit_return_stmt(struct Interpreter* intp, struct Stmt* stmt)
+struct Error* visit_return_stmt(struct Interpreter* intp, struct Stmt* stmt, struct lexer_token_value* return_value_result)
 {
     struct Error* error = NULL;
 
-    struct lexer_token_value value = {0};
+    struct lexer_token_value return_value = {0};
+
     if (stmt->return_stmt.value != NULL) {
-        if (has_error(evaluate(intp, stmt->return_stmt.value, &value))) {
+        if (has_error(evaluate(intp, stmt->return_stmt.value, &return_value))) {
             return trace(error);
         }
+        // printf("stmt->return_stmt.value->type: %d\n", stmt->return_stmt.value->type);
+        // printf("return_value.type: %d\n", return_value.type);
+        
+        *return_value_result = return_value;
     }
-
-    // TODO: change to something else
-    char return_value[sizeof(struct lexer_token_value)];
-    ht_to_char(return_value, &value, sizeof(value));
-
-    error = error_type(ERROR_RETURN, return_value);
-
-    return error;
+    return NULL;
 }
 
-struct Error* execute(struct Interpreter* intp, struct Stmt* stmt)
+struct Error* execute(struct Interpreter* intp, struct Stmt* stmt, struct lexer_token_value* return_value)
 {
     struct Error* error = NULL;
 
     switch (stmt->type) {
     case STMT_EXPRESSION:
         return trace(visit_expression_stmt(intp, stmt));
-    case STMT_PRINT:
-        return trace(visit_print_stmt(intp, stmt));
     case STMT_VAR:
         return trace(visit_variable_stmt(intp, stmt));
     case STMT_BLOCK:
-        return trace(visit_block_stmt(intp, stmt));
+        return trace(visit_block_stmt(intp, stmt, return_value));
     case STMT_IF:
-        return trace(visit_if_stmt(intp, stmt));
+        return trace(visit_if_stmt(intp, stmt, return_value));
     case STMT_WHILE:
-        return trace(visit_while_stmt(intp, stmt));
+        return trace(visit_while_stmt(intp, stmt, return_value));
     case STMT_FUNCTION:
         return trace(visit_function_stmt(intp, stmt));
     case STMT_RETURN:
-        return trace(visit_return_stmt(intp, stmt));
+        return trace(visit_return_stmt(intp, stmt, return_value));
     }
 }
 
@@ -426,15 +403,11 @@ struct Interpreter* interpreter_init()
 {
     struct Interpreter* intp = malloc(sizeof(struct Interpreter));
     
+    intp->allocator = temp_init();
     intp->global_env = env_init(NULL);
     intp->env = intp->global_env;
 
-    struct lexer_token_value clock;
-    clock.type = VALUE_TYPE_CALLABLE;
-    clock.callable_value.arity = 0;
-    clock.callable_value.call = native_clock_fun;
-
-    env_define(intp->global_env, sv_from_cstr("clock"), clock);
+    init_native_functions(intp);
 
     return intp;
 }
@@ -449,8 +422,10 @@ struct Error* interpret(struct Interpreter* intp, Stmts* stmts)
 {
     struct Error* error = NULL;
 
+    struct lexer_token_value* return_value = NULL;
+
     for (size_t i = 0; i < stmts->count; i++) {
-        if (has_error(execute(intp, stmts->items[i]))) {
+        if (has_error(execute(intp, stmts->items[i], return_value))) {
             return trace(error);
         }
     }

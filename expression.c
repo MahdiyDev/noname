@@ -119,7 +119,7 @@ void free_expr(struct Expr* expr)
 void print_indent(int indent_level)
 {
     for (int i = 0; i < indent_level; i++) {
-        printf("  ");
+        printf("| ");
     }
 }
 
@@ -177,8 +177,9 @@ void print_expression(struct Expr* expr, int indent_level)
         for (size_t i = 0; i < expr->call.arguments->count; i++) {
             print_expression(expr->call.arguments->items[i], indent_level + 1);
         }
+        break;
     default:
-        printf("Unknown Expression\n");
+        printf("Unknown Expression: %d\n", expr->type);
         break;
     }
 }

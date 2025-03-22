@@ -1,26 +1,26 @@
 fun add(a, b, c) {
-    print(a + b + c);
+    println(a + b + c);
 }
 
 fun print_hello(name) {
-    print("Hello:");
-    print(name);
+    print("Hello: ");
+    println(name);
 }
 
 add(1, 2, 3);
 add(25, 15, 5);
 
-print_hello("    Someone");
+print_hello("Someone");
 
 fun fib(n) {
     if (n <= 1) return n;
     return fib(n - 2) + fib(n - 1);
 }
 
-for (var i = 0; i < 20; i = i + 1) {
-    print(fib(i));
+for (var i = 0; i < 2; i = i + 1) {
+    println(fib(i));
 }
 
-print("");
-print("Clock:");
-print(clock()); // build in function
+println("");
+println("Clock:");
+println(clock()); // build in function

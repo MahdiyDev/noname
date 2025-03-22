@@ -2,16 +2,16 @@
     answer must be: 112
 */
 
-// print (28 + 28) * 2;
+// println (28 + 28) * 2;
 var a = 2;
 var b = 12;
 var d = a;
 
-print(a + b * d);
+println(a + b * d);
 
 // c = 3;
-print(a + d);
+println(a + d);
 
-print(25 + 23);
+println(25 + 23);
 
-print(25 + 234 * 2);
+println(25 + 234 * 2);

@@ -25,9 +25,6 @@
 
 #define da_init_with_capacity(da, cap)                                                          \
     do {                                                                                        \
-        typeof(da) _new_da = (typeof(da))DA_MALLOC(sizeof(typeof(*da)));                        \
-        DA_ASSERT(_new_da != NULL && "Failed to allocate memory");                              \
-        da = _new_da;                                                                           \
         (da)->capacity = cap;                                                                   \
         if (cap > 0) {                                                                          \
             (da)->items = (typeof((da)->items))DA_MALLOC(cap * (sizeof(typeof(*(da)->items)))); \
@@ -43,20 +40,25 @@
             if ((da)->items != NULL) { \
                 DA_FREE((da)->items);  \
             }                          \
-            DA_FREE(da);               \
-            da = NULL;                 \
+            (da)->capacity = 0;        \
+            (da)->count = 0;           \
         }                              \
     } while (0)
 
+#define da_grow(items, count, capacity)                                             \
+    do {                                                                            \
+        if (count >= capacity) {                                                    \
+            capacity = capacity * 2;                                                \
+            items = (typeof(items))DA_REALLOC(items, capacity * sizeof(*items));    \
+            DA_ASSERT(items != NULL && "Failed to allocate memory");                \
+        }                                                                           \
+    } while (0)
+
 // Append an item to a dynamic array
-#define da_append(da, item)                                                                                    \
-    do {                                                                                                       \
-        if ((da)->count >= (da)->capacity) {                                                                   \
-            (da)->capacity = (da)->capacity * 2;                                                               \
-            (da)->items = (typeof((da)->items))DA_REALLOC((da)->items, (da)->capacity * sizeof(*(da)->items)); \
-            DA_ASSERT((da)->items != NULL && "Failed to allocate memory");                                     \
-        }                                                                                                      \
-        (da)->items[(da)->count++] = (item);                                                                   \
+#define da_append(da, item)                                 \
+    do {                                                    \
+        da_grow((da)->items, (da)->count, (da)->capacity);  \
+        (da)->items[(da)->count++] = (item);                \
     } while (0)
 
 #define da_append_many(da, new_items, new_items_count)                                                         \

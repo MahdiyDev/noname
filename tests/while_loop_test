@@ -2,6 +2,6 @@ var a = 0;
 
 while (a < 100000) {
     var b = 0;
-    print(a);
+    println(a);
     a = a + 1;
 }

@@ -1,2 +1,3 @@
 var name = "Bobur";
-print(name);
+print("Bye: ");
+println(name);

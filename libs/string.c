@@ -1,7 +1,6 @@
 #include "string.h"
 #include <stdarg.h>
 #include <ctype.h>
-#include <stdio.h>
 
 string_view sv_from_parts(const char* data, size_t count)
 {
@@ -281,27 +280,30 @@ void sb_add_f(string_builder* sb, const char *format, ...)
 // UTILS
 #include <errno.h>
 
-#define return_defer(value) ({result = value; goto defer;})
 bool sb_read_file(string_builder* sb, const char* file_path)
 {
-    bool result = true;
-
     FILE *file = fopen(file_path, "rb");
     if (file == NULL) {
-        return_defer(false);
+        fclose(file);
+        fprintf(stderr, "Could not read file %s: %s\n", file_path, strerror(errno));
     }
 
+    bool result = sb_read_file_from_fp(sb, file);
+    if (!result) fclose(file);
+
+    return result;
+}
+
+bool sb_read_file_from_fp(string_builder* sb, FILE* fp)
+{
     int ch;
-    while ((ch = fgetc(file)) != EOF) {
+    while ((ch = fgetc(fp)) != EOF) {
         sb_add_c(sb, ch);
     }
 
-    if (ferror(file)) {
-        return_defer(false);
+    if (ferror(fp)) {
+        return false;
     }
 
-defer:
-    if (file) fclose(file);
-    if (!result) fprintf(stderr, "Could not read file %s: %s\n", file_path, strerror(errno));
-    return result;
+    return true;
 }

@@ -1,0 +1,11 @@
+fun create_print() {
+    fun print_hello(name) {
+        print("Hello: ");
+        println(name);
+    }
+
+    return print_hello;
+}
+
+var p = create_print();
+p("Bob");

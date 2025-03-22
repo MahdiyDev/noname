@@ -1,18 +1,9 @@
-#include "interpreter.h"
 #include "libs/dynamic_array.h"
 #include "libs/error.h"
 #include "libs/string.h"
-#include "libs/temp_alloc.h"
-#include "statement.h"
 #include "string.h"
 #include "expression.h"
-#include "lexer.h"
-
-struct Parser {
-    temp_allocator allocator;
-    lexer* lexer;
-    lexer_token* token;
-};
+#include "parser.h"
 
 struct Error* parse_expression(struct Parser* parser, struct Expr** result);
 struct Error* parse_declaration(struct Parser* parser, struct Stmt** result);
@@ -218,7 +209,6 @@ struct Error* parse_comparison(struct Parser* parser, struct Expr** result)
         lexer_token operator_tok = *parser->token; // Save the current operator
 
         if (!lex_get_token(parser->lexer, parser->token)) {
-            printf("%.*s\n", sv_fmt(parser->token->lexeme));
             return error_f("at %s:%zu:%zu Unexpected end of input after '%.*s'", lex_loc_fmt_ptr(parser->token), sv_fmt(operator_tok.lexeme));
         }
 
@@ -401,34 +391,6 @@ struct Error* parse_if_statement(struct Parser* parser, struct Stmt** result)
     }
 
     *result = create_if_stmt(parser->allocator, condition, then_branch, else_branch);
-
-    return NULL;
-}
-
-struct Error* parse_print_statement(struct Parser* parser, struct Stmt** result)
-{
-    struct Error* error = NULL;
-
-    lex_get_token(parser->lexer, parser->token); // Consume 'print'
-
-    if (has_error(consume_and_expect(parser, "("))) {
-        return trace(error);
-    }
-
-    struct Expr* value = NULL;
-    if (has_error(parse_expression(parser, &value))) {
-        return trace(error);
-    }
-
-    if (has_error(consume_and_expect(parser, ")"))) {
-        return trace(error);
-    }
-
-    if (has_error(consume_and_expect(parser, ";"))) {
-        return trace(error);
-    }
-
-    *result = create_print_stmt(parser->allocator, value);
 
     return NULL;
 }
@@ -657,7 +619,6 @@ struct Error* parse_statement(struct Parser* parser, struct Stmt** result)
     if (sv_equal_cstr(parser->token->lexeme, "return")) return trace(parse_return_statement(parser, result));
     if (sv_equal_cstr(parser->token->lexeme, "for")) return trace(parse_for_statement(parser, result));
     if (sv_equal_cstr(parser->token->lexeme, "if")) return trace(parse_if_statement(parser, result));
-    if (sv_equal_cstr(parser->token->lexeme, "print")) return trace(parse_print_statement(parser, result));
     if (sv_equal_cstr(parser->token->lexeme, "while")) return trace(parse_while_statement(parser, result));
     if (sv_equal_cstr(parser->token->lexeme, "{")) {
         Stmts* statements = NULL;
@@ -725,90 +686,4 @@ struct Error* parse(struct Parser* parser, Stmts* result)
     }
 
     return NULL;
-}
-
-const char* puncts[] = {
-    "(", ")", "{", "}", 
-    ",", ".", ";",
-    "-", "+", "*", "/",
-    ">=", ">", "<=", "<", // Order is matter
-};
-
-const char *sl_comments[] = {
-    "//",
-};
-
-const multi_line_comments ml_comments[] = {
-    {"/*", "*/"},
-};
-
-int main(int argc, char** argv)
-{
-    int exit_code = EXIT_SUCCESS;
-
-    if (argc < 2) {
-        fprintf(stderr, "usage: %s file\n", argv[0]);
-        return EXIT_FAILURE;
-    }
-    const char* file_path = argv[1];
-
-    string_builder* sb = sb_init(NULL);
-    if (!sb_read_file(sb, file_path)) return_defer(exit_code, EXIT_FAILURE);
-
-    lexer l = lexer_create(file_path, sb_to_sv(sb));
-
-    l.puncts = puncts;
-    l.puncts_count = arr_count(puncts);
-    l.sl_comments = sl_comments;
-    l.sl_comments_count = arr_count(sl_comments);
-    l.ml_comments = ml_comments;
-    l.ml_comments_count = arr_count(ml_comments);
-
-    lexer_token t = {0};
-
-    struct Error* error = NULL;
-
-    Stmts* stmts = NULL;
-    da_init(stmts);
-
-    temp_allocator allocator = temp_init();
-
-    struct Parser parser;
-
-    parser.lexer = &l;
-    parser.token = &t;
-    parser.allocator = allocator;
-
-    if (has_error(parse(&parser, stmts))) {
-        print_error(error);
-
-        for (size_t i = 0; i < stmts->count; i++) {
-            free_stmt(stmts->items[i]);
-        }
-
-        da_free(stmts);
-        return_defer(exit_code, EXIT_FAILURE);
-    }
-
-    struct Interpreter* intp = interpreter_init();
-
-    if (has_error(interpret(intp, stmts))) {
-        print_error(error);
-
-        interpreter_destroy(intp);
-        da_free(stmts);
-        return_defer(exit_code, EXIT_FAILURE);
-    }
-
-    interpreter_destroy(intp);
-
-    for (size_t i = 0; i < stmts->count; i++) {
-        free_stmt(stmts->items[i]);
-    }
-
-    da_free(stmts);
-
-defer:
-    sb_free(sb);
-    return exit_code;
 }

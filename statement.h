@@ -10,7 +10,6 @@ typedef struct {
 
 typedef enum {
     STMT_EXPRESSION,
-    STMT_PRINT,
     STMT_VAR,
     STMT_BLOCK,
     STMT_IF,
@@ -65,7 +64,6 @@ struct Stmt {
 };
 
 struct Stmt* create_expression_stmt(temp_allocator allocator, struct Expr* expression);
-struct Stmt* create_print_stmt(temp_allocator allocator, struct Expr* expression);
 struct Stmt* create_variable_stmt(temp_allocator allocator, lexer_token name, struct Expr* initializer);
 struct Stmt* create_block_stmt(temp_allocator allocator, Stmts* statements);
 struct Stmt* create_if_stmt(temp_allocator allocator, struct Expr* condition, struct Stmt* then_branch, struct Stmt* else_branch);
