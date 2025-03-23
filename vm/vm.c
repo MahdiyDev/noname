@@ -1,5 +1,6 @@
 #include "vm.h"
 #include "chunk.h"
+#include "compiler.h"
 #include "debug.h"
 #include "value.h"
 
@@ -8,9 +9,11 @@ void reset_stack(VM* vm)
     vm->stack_top = vm->stack;
 }
 
-void init_vm(VM* vm)
+VM init_vm()
 {
-    reset_stack(vm);
+    VM vm = {0};
+    reset_stack(&vm);
+    return vm;
 }
 
 void free_vm(VM* vm)
@@ -62,11 +65,12 @@ static InterpretResult run(VM* vm) {
     #undef BINARY_OP
 }
 
-InterpretResult interpret(VM* vm, Chunk *chunk)
+
+
+InterpretResult interpret(VM* vm, const char* source)
 {
-    vm->chunk = chunk;
-    vm->ip = vm->chunk->items;
-    return run(vm);
+    compile(source);
+    return INTERPRET_OK;
 }
 
 void push(VM* vm, Value value)

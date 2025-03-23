@@ -203,12 +203,12 @@ string_view sb_to_sv(string_builder* sb)
     return sv_from_parts((sb)->items, (sb)->count);
 }
 
-string_builder* sb_init(const char* cstr)
+string_builder sb_init(const char* cstr)
 {
-    string_builder* sb;
-    da_init(sb);
+    string_builder sb = {0};
+    da_init(&sb);
     if (cstr != NULL) {
-        sb_add_cstr(sb, cstr);
+        sb_add_cstr(&sb, cstr);
     }
     return sb;
 }
@@ -278,15 +278,10 @@ void sb_add_f(string_builder* sb, const char *format, ...)
 }
 
 // UTILS
-#include <errno.h>
-
 bool sb_read_file(string_builder* sb, const char* file_path)
 {
     FILE *file = fopen(file_path, "rb");
-    if (file == NULL) {
-        fclose(file);
-        fprintf(stderr, "Could not read file %s: %s\n", file_path, strerror(errno));
-    }
+    if (file == NULL) return false;
 
     bool result = sb_read_file_from_fp(sb, file);
     if (!result) fclose(file);

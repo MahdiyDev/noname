@@ -49,7 +49,7 @@ bool sv_in_cstr(string_view a, const char* cstr);
 bool sv_in_c(string_view a, const char c);
 #define sv_in_carr(sv, arr) sv_in(sv, arr, arr_count(arr))
 
-string_builder* sb_init(const char* cstr);
+string_builder sb_init(const char* cstr);
 void sb_free(string_builder* sb);
 
 void sb_add(string_builder* sb, string_view sv);

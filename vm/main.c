@@ -1,45 +1,51 @@
-#include "chunk.h"
-#include "debug.h"
 #include "vm.h"
+#include "../libs/string.h"
 
-int main()
+#include <errno.h>
+
+static void repl(VM* vm)
 {
-    VM vm;
-    init_vm(&vm);
+    char line[1024];
+    for (;;) {
+        printf("> ");
 
-    Chunk chunk = {0};
-    init_chunk(&chunk);
+        if (!fgets(line, sizeof(line), stdin)) {
+            printf("\n");
+            break;
+        }
 
-    // const 1.2
-    int constant = add_constant(&chunk, 1.2);
-    write_chunk(&chunk, OP_CONSTANT, 123);
-    write_chunk(&chunk, constant, 123);
-    
-    // const 3.4
-    constant = add_constant(&chunk, 3.4);
-    write_chunk(&chunk, OP_CONSTANT, 123);
-    write_chunk(&chunk, constant, 123);
-    
-    // op 1.2 + 3.4
-    write_chunk(&chunk, OP_ADD, 123);
-    
-    // const 5.6
-    constant = add_constant(&chunk, 5.6);
-    write_chunk(&chunk, OP_CONSTANT, 123);
-    write_chunk(&chunk, constant, 123);
-    
-    // op 4.6 / 5.6
-    write_chunk(&chunk, OP_DIVIDE, 123);
-    // op -(0.821429)
-    write_chunk(&chunk, OP_NEGATE, 123);
-    // return -0.821429
-    write_chunk(&chunk, OP_RETURN, 123);
+        interpret(vm, line);
+    }
+}
 
-    disassemble_chunk(&chunk, "test chunk");
+static void run_file(VM* vm, const char* path)
+{
+    string_builder source = sb_init(NULL);
+    if (!sb_read_file(&source, path)) {
+        fprintf(stderr, "Could not read file %s: %s\n", path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
 
-    interpret(&vm, &chunk);
+    InterpretResult result = interpret(vm, source.items);
+    sb_free(&source);
+
+    if (result == INTERPRET_COMPILE_ERROR) exit(65);
+    if (result == INTERPRET_RUNTIME_ERROR) exit(70);
+}
+
+int main(int argc, char** argv)
+{
+    VM vm = init_vm();
+
+    if (argc == 1) {
+        repl(&vm);
+    } else if (argc == 2) {
+        run_file(&vm, argv[1]);
+    } else {
+        fprintf(stderr, "Usage: vm.out [path]\n");
+        exit(EXIT_FAILURE);
+    }
 
     free_vm(&vm);
-    free_chunk(&chunk);
     return 0;
 }
