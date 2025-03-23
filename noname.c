@@ -28,10 +28,10 @@ int main(int argc, char** argv)
     }
     const char* file_path = argv[1];
 
-    string_builder* sb = sb_init(NULL);
-    if (!sb_read_file(sb, file_path)) return_defer(exit_code, EXIT_FAILURE);
+    string_builder sb = sb_init(NULL);
+    if (!sb_read_file(&sb, file_path)) return_defer(exit_code, EXIT_FAILURE);
 
-    lexer l = lexer_create(file_path, sb_to_sv(sb));
+    lexer l = lexer_create(file_path, sb_to_sv(&sb));
 
     l.puncts = puncts;
     l.puncts_count = arr_count(puncts);
@@ -89,6 +89,6 @@ int main(int argc, char** argv)
     da_free(stmts);
 
 defer:
-    sb_free(sb);
+    sb_free(&sb);
     return exit_code;
 }

@@ -72,14 +72,32 @@ static void skip_whitespace(Scanner* scanner)
             advance(scanner);
             break;
         case '\n':
-            scanner->current++;
             advance(scanner);
             break;
         case '/':
-            switch (peek_next(scanner)) {
-            case '/': while(peek(scanner) != '\n' && is_at_end(scanner)) advance(scanner); break;
-            case '*': while(peek(scanner) != '*' && peek(scanner) != '/' && is_at_end(scanner)) advance(scanner); break;
-            default:
+            if (peek_next(scanner) == '/') {
+                while (peek(scanner) != '\n' && !is_at_end(scanner)) {
+                    advance(scanner);
+                }
+                if (peek(scanner) == '\n') {
+                    advance(scanner);
+                }
+            } else if (peek_next(scanner) == '*') {
+                // Skip multi-line comment
+                advance(scanner); // Consume '*'
+                advance(scanner); // Consume '/'
+                while (!is_at_end(scanner)) {
+                    if (peek(scanner) == '*' && peek_next(scanner) == '/') {
+                        advance(scanner); // Consume '*'
+                        advance(scanner); // Consume '/'
+                        break;
+                    }
+                    advance(scanner);
+                }
+                if (peek(scanner) == '\n') {
+                    advance(scanner);
+                }
+            } else {
                 return;
             }
         default:
