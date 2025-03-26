@@ -17,10 +17,11 @@ debug.o: debug.c debug.h chunk.h common.h value.h
 value.o: value.c ../libs/dynamic_array.h value.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-vm.o: vm.c vm.h chunk.h common.h value.h compiler.h debug.h
+vm.o: vm.c vm.h chunk.h common.h value.h compiler.h scanner.h debug.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-compiler.o: compiler.c compiler.h scanner.h common.h
+compiler.o: compiler.c compiler.h chunk.h common.h value.h scanner.h \
+ debug.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 scanner.o: scanner.c scanner.h

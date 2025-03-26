@@ -208,21 +208,21 @@ Token scan_token(Scanner* scanner)
     if (is_digit(c)) return number(scanner);
 
     switch (c) {
-    case '(': make_token(scanner, TOKEN_LEFT_PAREN);
-    case ')': make_token(scanner, TOKEN_RIGHT_PAREN);
-    case '{': make_token(scanner, TOKEN_LEFT_BRACE);
-    case '}': make_token(scanner, TOKEN_RIGHT_BRACE);
-    case ';': make_token(scanner, TOKEN_SEMICOLON);
-    case ',': make_token(scanner, TOKEN_COMMA);
-    case '.': make_token(scanner, TOKEN_DOT);
-    case '-': make_token(scanner, TOKEN_MINUS);
-    case '+': make_token(scanner, TOKEN_PLUS);
-    case '/': make_token(scanner, TOKEN_SLASH);
-    case '*': make_token(scanner, TOKEN_STAR);
-    case '!': make_token(scanner, match(scanner, '=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
-    case '=': make_token(scanner, match(scanner, '=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
-    case '<': make_token(scanner, match(scanner, '=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
-    case '>': make_token(scanner, match(scanner, '=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
+    case '(': return make_token(scanner, TOKEN_LEFT_PAREN);
+    case ')': return make_token(scanner, TOKEN_RIGHT_PAREN);
+    case '{': return make_token(scanner, TOKEN_LEFT_BRACE);
+    case '}': return make_token(scanner, TOKEN_RIGHT_BRACE);
+    case ';': return make_token(scanner, TOKEN_SEMICOLON);
+    case ',': return make_token(scanner, TOKEN_COMMA);
+    case '.': return make_token(scanner, TOKEN_DOT);
+    case '-': return make_token(scanner, TOKEN_MINUS);
+    case '+': return make_token(scanner, TOKEN_PLUS);
+    case '/': return make_token(scanner, TOKEN_SLASH);
+    case '*': return make_token(scanner, TOKEN_STAR);
+    case '!': return make_token(scanner, match(scanner, '=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
+    case '=': return make_token(scanner, match(scanner, '=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
+    case '<': return make_token(scanner, match(scanner, '=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
+    case '>': return make_token(scanner, match(scanner, '=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
     case '"': return string(scanner);
     }
 

@@ -1,8 +1,10 @@
 #include "vm.h"
 #include "chunk.h"
 #include "compiler.h"
-#include "debug.h"
 #include "value.h"
+#ifdef DEBUG_TRACE_EXECUTION
+#include "debug.h"
+#endif
 
 void reset_stack(VM* vm)
 {
@@ -38,7 +40,6 @@ static InterpretResult run(VM* vm) {
             print_value(*slot);
             printf(" ]");
         }
-        printf("\n");
         disassemble_instruction(vm->chunk, (int)(vm->ip - vm->chunk->items));
     #endif
         uint8_t instruction;
@@ -69,8 +70,21 @@ static InterpretResult run(VM* vm) {
 
 InterpretResult interpret(VM* vm, const char* source)
 {
-    compile(source);
-    return INTERPRET_OK;
+    Chunk chunk;
+    init_chunk(&chunk);
+
+    if (!compile(source, &chunk)) {
+        free_chunk(&chunk);
+        return INTERPRET_COMPILE_ERROR;
+    }
+
+    vm->chunk = &chunk;
+    vm->ip = vm->chunk->items;
+
+    InterpretResult result = run(vm);
+
+    free_chunk(&chunk);
+    return result;
 }
 
 void push(VM* vm, Value value)
