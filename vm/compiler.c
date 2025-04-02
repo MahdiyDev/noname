@@ -107,7 +107,7 @@ static void end_compiler(Compiler* compiler)
 static void number(Compiler* compiler)
 {
     double value = strtod(compiler->parser.previous.start, NULL);
-    emit_constant(compiler, value);
+    emit_constant(compiler, NUMBER_VAL(value));
 }
 
 static void parse_precedence(Compiler* compiler, Precedence precedence)
@@ -149,8 +149,18 @@ static void unary(Compiler* compiler)
 
     // Emit the operator instruction.
     switch (operator_type) {
+        case TOKEN_BANG: emit_byte(compiler, OP_NOT); break;
         case TOKEN_MINUS: emit_byte(compiler, OP_NEGATE); break;
         default: return; // Unreachable.
+    }
+}
+
+static void literal(Compiler* compiler) {
+    switch (compiler->parser.previous.type) {
+      case TOKEN_FALSE: emit_byte(compiler, OP_FALSE); break;
+      case TOKEN_NIL: emit_byte(compiler, OP_NIL); break;
+      case TOKEN_TRUE: emit_byte(compiler, OP_TRUE); break;
+      default: return; // Unreachable.
     }
 }
 
@@ -166,31 +176,31 @@ ParseRule rules[] = {
     [TOKEN_SEMICOLON]     = { NULL,     NULL,   PREC_NONE },
     [TOKEN_SLASH]         = { NULL,     binary, PREC_FACTOR },
     [TOKEN_STAR]          = { NULL,     binary, PREC_FACTOR },
-    [TOKEN_BANG]          = { NULL,     NULL,   PREC_NONE },
-    [TOKEN_BANG_EQUAL]    = { NULL,     NULL,   PREC_NONE },
+    [TOKEN_BANG]          = { unary,    NULL,   PREC_NONE },
+    [TOKEN_BANG_EQUAL]    = { NULL,     binary, PREC_EQUALITY },
     [TOKEN_EQUAL]         = { NULL,     NULL,   PREC_NONE },
-    [TOKEN_EQUAL_EQUAL]   = { NULL,     NULL,   PREC_NONE },
-    [TOKEN_GREATER]       = { NULL,     NULL,   PREC_NONE },
-    [TOKEN_GREATER_EQUAL] = { NULL,     NULL,   PREC_NONE },
-    [TOKEN_LESS]          = { NULL,     NULL,   PREC_NONE },
-    [TOKEN_LESS_EQUAL]    = { NULL,     NULL,   PREC_NONE },
+    [TOKEN_EQUAL_EQUAL]   = { NULL,     binary, PREC_EQUALITY},
+    [TOKEN_GREATER]       = { NULL,     binary, PREC_COMPARISON },
+    [TOKEN_GREATER_EQUAL] = { NULL,     binary, PREC_COMPARISON },
+    [TOKEN_LESS]          = { NULL,     binary, PREC_COMPARISON },
+    [TOKEN_LESS_EQUAL]    = { NULL,     binary, PREC_COMPARISON },
     [TOKEN_IDENTIFIER]    = { NULL,     NULL,   PREC_NONE },
     [TOKEN_STRING]        = { NULL,     NULL,   PREC_NONE },
     [TOKEN_NUMBER]        = { number,   NULL,   PREC_NONE },
     [TOKEN_AND]           = { NULL,     NULL,   PREC_NONE },
     [TOKEN_CLASS]         = { NULL,     NULL,   PREC_NONE },
     [TOKEN_ELSE]          = { NULL,     NULL,   PREC_NONE },
-    [TOKEN_FALSE]         = { NULL,     NULL,   PREC_NONE },
+    [TOKEN_FALSE]         = { literal,  NULL,   PREC_NONE },
     [TOKEN_FOR]           = { NULL,     NULL,   PREC_NONE },
     [TOKEN_FUN]           = { NULL,     NULL,   PREC_NONE },
     [TOKEN_IF]            = { NULL,     NULL,   PREC_NONE },
-    [TOKEN_NIL]           = { NULL,     NULL,   PREC_NONE },
+    [TOKEN_NIL]           = { literal,  NULL,   PREC_NONE },
     [TOKEN_OR]            = { NULL,     NULL,   PREC_NONE },
     [TOKEN_PRINT]         = { NULL,     NULL,   PREC_NONE },
     [TOKEN_RETURN]        = { NULL,     NULL,   PREC_NONE },
     [TOKEN_SUPER]         = { NULL,     NULL,   PREC_NONE },
     [TOKEN_THIS]          = { NULL,     NULL,   PREC_NONE },
-    [TOKEN_TRUE]          = { NULL,     NULL,   PREC_NONE },
+    [TOKEN_TRUE]          = { literal,  NULL,   PREC_NONE },
     [TOKEN_VAR]           = { NULL,     NULL,   PREC_NONE },
     [TOKEN_WHILE]         = { NULL,     NULL,   PREC_NONE },
     [TOKEN_ERROR]         = { NULL,     NULL,   PREC_NONE },
@@ -213,6 +223,12 @@ static void binary(Compiler* compiler)
 
     // Emit the operator instruction.
     switch (operator_type) {
+        case TOKEN_BANG_EQUAL:    emit_bytes(compiler, OP_EQUAL, OP_NOT); break;
+        case TOKEN_EQUAL_EQUAL:   emit_byte(compiler, OP_EQUAL); break;
+        case TOKEN_GREATER:       emit_byte(compiler, OP_GREATER); break;
+        case TOKEN_GREATER_EQUAL: emit_bytes(compiler, OP_LESS, OP_NOT); break;
+        case TOKEN_LESS:          emit_byte(compiler, OP_LESS); break;
+        case TOKEN_LESS_EQUAL:    emit_bytes(compiler, OP_GREATER, OP_NOT); break;
         case TOKEN_PLUS: emit_byte(compiler, OP_ADD); break;
         case TOKEN_MINUS: emit_byte(compiler, OP_SUBTRACT); break;
         case TOKEN_STAR: emit_byte(compiler, OP_MULTIPLY); break;
